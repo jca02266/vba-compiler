@@ -14,6 +14,12 @@ export enum TokenType {
     KeywordDo,
     KeywordWhile,
     KeywordLoop,
+    KeywordSub,
+    KeywordFunction,
+    KeywordDim,
+    KeywordAs,
+    KeywordNew,
+    KeywordCollection,
     KeywordAnd,
     KeywordOr,
     OperatorPlus,
@@ -24,6 +30,10 @@ export enum TokenType {
     OperatorGreaterThan,
     OperatorLessThanOrEqual,
     OperatorGreaterThanOrEqual,
+    OperatorComma,
+    OperatorLParen,
+    OperatorRParen,
+    OperatorDot,
     Newline,
     EOF,
     Unknown
@@ -143,6 +153,26 @@ export class Lexer {
             return { type: TokenType.OperatorMinus, value: '-', line: this.line };
         }
 
+        if (char === ',') {
+            this.advance();
+            return { type: TokenType.OperatorComma, value: ',', line: this.line };
+        }
+
+        if (char === '(') {
+            this.advance();
+            return { type: TokenType.OperatorLParen, value: '(', line: this.line };
+        }
+
+        if (char === ')') {
+            this.advance();
+            return { type: TokenType.OperatorRParen, value: ')', line: this.line };
+        }
+
+        if (char === '.') {
+            this.advance();
+            return { type: TokenType.OperatorDot, value: '.', line: this.line };
+        }
+
         if (this.isDigit(char)) {
             let numStr = '';
             while (this.isDigit(this.peek())) {
@@ -169,6 +199,12 @@ export class Lexer {
             if (lowerId === 'do') return { type: TokenType.KeywordDo, value: idStr, line: this.line };
             if (lowerId === 'while') return { type: TokenType.KeywordWhile, value: idStr, line: this.line };
             if (lowerId === 'loop') return { type: TokenType.KeywordLoop, value: idStr, line: this.line };
+            if (lowerId === 'sub') return { type: TokenType.KeywordSub, value: idStr, line: this.line };
+            if (lowerId === 'function') return { type: TokenType.KeywordFunction, value: idStr, line: this.line };
+            if (lowerId === 'dim') return { type: TokenType.KeywordDim, value: idStr, line: this.line };
+            if (lowerId === 'as') return { type: TokenType.KeywordAs, value: idStr, line: this.line };
+            if (lowerId === 'new') return { type: TokenType.KeywordNew, value: idStr, line: this.line };
+            if (lowerId === 'collection') return { type: TokenType.KeywordCollection, value: idStr, line: this.line };
             if (lowerId === 'and') return { type: TokenType.KeywordAnd, value: idStr, line: this.line };
             if (lowerId === 'or') return { type: TokenType.KeywordOr, value: idStr, line: this.line };
             if (lowerId === 'debug.print') return { type: TokenType.KeywordDebugPrint, value: idStr, line: this.line };

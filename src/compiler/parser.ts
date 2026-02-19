@@ -38,7 +38,52 @@ export interface DebugPrintStatement extends Statement {
     expression: Expression;
 }
 
+export interface Parameter extends ASTNode {
+    type: 'Parameter';
+    name: string;
+}
+
+export interface ProcedureDeclaration extends Statement {
+    type: 'ProcedureDeclaration';
+    isFunction: boolean;
+    name: Identifier;
+    parameters: Parameter[];
+    body: Statement[];
+}
+
+export interface VariableDeclaration extends Statement {
+    type: 'VariableDeclaration';
+    name: Identifier;
+    isArray: boolean;
+    arraySize?: Expression;
+    isNew: boolean;
+    objectType?: string;
+}
+
+export interface AssignmentStatement extends Statement {
+    type: 'AssignmentStatement';
+    left: Expression; // Identifier, CallExpression (for arrays), MemberExpression
+    right: Expression;
+}
+
+export interface CallStatement extends Statement {
+    type: 'CallStatement';
+    expression: CallExpression;
+}
+
 export interface Expression extends ASTNode { }
+
+export interface CallExpression extends Expression {
+    type: 'CallExpression';
+    callee: Expression;
+    args: Expression[];
+}
+
+export interface MemberExpression extends Expression {
+    type: 'MemberExpression';
+    object: Expression;
+    property: Identifier;
+}
 
 export interface Identifier extends Expression {
     type: 'Identifier';
@@ -122,14 +167,51 @@ export class Parser {
             return this.parseIfStatement();
         } else if (token.type === TokenType.KeywordDo) {
             return this.parseDoWhileStatement();
-        } else if (token.type === TokenType.Identifier) {
-            // Can be assignment (count = count + 1)
-            // or just a call (though we only have debug.print so far)
-            if (this.pos + 1 < this.tokens.length && this.tokens[this.pos + 1].type === TokenType.OperatorEquals) {
-                return this.parseAssignmentStatement();
-            }
+        } else if (token.type === TokenType.KeywordSub || token.type === TokenType.KeywordFunction) {
+            return this.parseProcedureDeclaration();
+        } else if (token.type === TokenType.KeywordDim) {
+            return this.parseDimStatement();
         } else if (token.type === TokenType.KeywordDebugPrint) {
             return this.parseDebugPrintStatement();
+        } else if (token.type === TokenType.Identifier) {
+            // Unify assignment, array access, method call
+            const expr = this.parseExpression(); // will parse `foo`, `foo()`, `foo.bar`, `arr(0)` etc
+
+            if (this.match(TokenType.OperatorEquals)) {
+                return {
+                    type: 'AssignmentStatement',
+                    left: expr,
+                    right: this.parseExpression()
+                } as AssignmentStatement;
+            } else {
+                // If it's not an assignment, maybe it's a CallStatement with arguments separated by comma
+                const args: Expression[] = [];
+                // Check if there are args on the same line
+                if (
+                    this.peek().type !== TokenType.Newline &&
+                    this.peek().type !== TokenType.EOF &&
+                    this.peek().type !== TokenType.KeywordElse &&
+                    this.peek().type !== TokenType.KeywordElseIf &&
+                    this.peek().type !== TokenType.KeywordEnd &&
+                    this.peek().type !== TokenType.KeywordNext &&
+                    this.peek().type !== TokenType.KeywordLoop
+                ) {
+                    args.push(this.parseExpression());
+                    while (this.match(TokenType.OperatorComma)) {
+                        args.push(this.parseExpression());
+                    }
+                }
+
+                if (args.length > 0) {
+                    return { type: 'CallStatement', expression: { type: 'CallExpression', callee: expr, args } } as CallStatement;
+                } else if (expr.type === 'CallExpression') {
+                    // Call matched via parens e.g. `MainLoop()`
+                    return { type: 'CallStatement', expression: expr } as CallStatement;
+                } else {
+                    // Call matched without parens e.g. `MainLoop`
+                    return { type: 'CallStatement', expression: { type: 'CallExpression', callee: expr, args: [] } } as CallStatement;
+                }
+            }
         } else if (token.type === TokenType.Unknown) {
             throw new Error(`Parse error: Unknown token '${token.value}' at line ${token.line}`);
         } else {
@@ -137,6 +219,79 @@ export class Parser {
             this.advance();
         }
         return null;
+    }
+
+    private parseProcedureDeclaration(): ProcedureDeclaration {
+        const isFunction = this.peek().type === TokenType.KeywordFunction;
+        this.advance(); // consume Sub or Function
+
+        const idToken = this.advance();
+        if (idToken.type !== TokenType.Identifier) {
+            throw new Error(`Parse error: Expected identifier after Sub/Function at line ${idToken.line}`);
+        }
+        const name: Identifier = { type: 'Identifier', name: idToken.value };
+        const parameters: Parameter[] = [];
+
+        if (this.match(TokenType.OperatorLParen)) {
+            if (this.peek().type !== TokenType.OperatorRParen) {
+                const paramName = this.advance();
+                parameters.push({ type: 'Parameter', name: paramName.value });
+                while (this.match(TokenType.OperatorComma)) {
+                    parameters.push({ type: 'Parameter', name: this.advance().value });
+                }
+            }
+            if (!this.match(TokenType.OperatorRParen)) {
+                throw new Error(`Parse error: Expected ')' at line ${this.peek().line}`);
+            }
+        }
+
+        this.skipNewlines();
+        const body: Statement[] = [];
+        while (this.peek().type !== TokenType.KeywordEnd && this.peek().type !== TokenType.EOF) {
+            const stmt = this.parseStatement();
+            if (stmt) body.push(stmt);
+            this.skipNewlines();
+        }
+
+        if (this.peek().type === TokenType.KeywordEnd) {
+            this.advance(); // consume 'End'
+            const expectedEndStr = isFunction ? 'Function' : 'Sub';
+            const endToken = this.advance();
+            if (endToken.value.toLowerCase() !== expectedEndStr.toLowerCase()) {
+                throw new Error(`Parse error: Expected '${expectedEndStr}' after 'End' at line ${endToken.line}`);
+            }
+        }
+
+        return { type: 'ProcedureDeclaration', isFunction, name, parameters, body };
+    }
+
+    private parseDimStatement(): VariableDeclaration {
+        this.advance(); // 'Dim'
+        const idToken = this.advance();
+        const name: Identifier = { type: 'Identifier', name: idToken.value };
+
+        let isArray = false;
+        let arraySize: Expression | undefined;
+        let isNew = false;
+        let objectType: string | undefined;
+
+        if (this.match(TokenType.OperatorLParen)) {
+            isArray = true;
+            arraySize = this.parseExpression();
+            this.match(TokenType.OperatorRParen);
+        }
+
+        if (this.match(TokenType.KeywordAs)) {
+            if (this.match(TokenType.KeywordNew)) {
+                isNew = true;
+            }
+            const typeToken = this.peek();
+            if (typeToken.type === TokenType.KeywordCollection || typeToken.type === TokenType.Identifier) {
+                objectType = this.advance().value;
+            }
+        }
+
+        return { type: 'VariableDeclaration', name, isArray, arraySize, isNew, objectType };
     }
 
     private parseForStatement(): ForStatement {
@@ -189,22 +344,7 @@ export class Parser {
         };
     }
 
-    private parseAssignmentStatement(): Statement {
-        const idToken = this.advance();
-        const identifier: Identifier = { type: 'Identifier', name: idToken.value } as Identifier;
 
-        this.advance(); // consume '='
-
-        const expression = this.parseExpression();
-        // Since we don't have an Assignment AST node, we'll fake it as a binary operation
-        // that evaluator handles specifically (by convention, not great but works for Step 2)
-        // A better approach is explicit AssignmentStatement
-        return {
-            type: 'AssignmentStatement',
-            identifier,
-            value: expression
-        } as any;
-    }
 
     private parseIfStatement(): IfStatement {
         this.advance(); // Consume 'If' or 'ElseIf'
@@ -364,13 +504,38 @@ export class Parser {
 
     private parsePrimary(): Expression {
         const token = this.advance();
+        let expr: Expression;
         if (token.type === TokenType.Number) {
-            return { type: 'NumberLiteral', value: parseFloat(token.value) } as NumberLiteral;
+            expr = { type: 'NumberLiteral', value: parseFloat(token.value) } as NumberLiteral;
         } else if (token.type === TokenType.String) {
-            return { type: 'StringLiteral', value: token.value } as StringLiteral;
+            expr = { type: 'StringLiteral', value: token.value } as StringLiteral;
         } else if (token.type === TokenType.Identifier) {
-            return { type: 'Identifier', name: token.value } as Identifier;
+            expr = { type: 'Identifier', name: token.value } as Identifier;
+        } else {
+            throw new Error(`Parse error: Unexpected token in expression '${token.value}' at line ${token.line}`);
         }
-        throw new Error(`Parse error: Unexpected token in expression '${token.value}' at line ${token.line}`);
+
+        while (true) {
+            if (this.match(TokenType.OperatorDot)) {
+                const propToken = this.advance();
+                const property = { type: 'Identifier', name: propToken.value } as Identifier;
+                expr = { type: 'MemberExpression', object: expr, property } as MemberExpression;
+            } else if (this.match(TokenType.OperatorLParen)) {
+                const args: Expression[] = [];
+                if (this.peek().type !== TokenType.OperatorRParen) {
+                    args.push(this.parseExpression());
+                    while (this.match(TokenType.OperatorComma)) {
+                        args.push(this.parseExpression());
+                    }
+                }
+                if (!this.match(TokenType.OperatorRParen)) {
+                    throw new Error(`Parse error: Expected ')' at line ${this.peek().line}`);
+                }
+                expr = { type: 'CallExpression', callee: expr, args } as CallExpression;
+            } else {
+                break;
+            }
+        }
+        return expr;
     }
 }

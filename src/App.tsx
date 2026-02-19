@@ -5,15 +5,17 @@ import { Parser } from './compiler/parser'
 import { Evaluator } from './compiler/evaluator'
 
 function App() {
-  const defaultSnippet = `count = 0
-do while count < 5
-  if count = 3 then
-    debug.print "Three!"
-  else
-    debug.print count
-  end if
-  count = count + 1
-loop`
+  const defaultSnippet = `Function AddNumbers(a, b)
+  AddNumbers = a + b
+End Function
+
+Sub MainLoop()
+  for i = 1 to 3
+    debug.print AddNumbers(i, 10)
+  next i
+End Sub
+
+MainLoop`
   const [code, setCode] = useState(defaultSnippet)
   const [output, setOutput] = useState<string[]>([])
 

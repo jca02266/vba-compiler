@@ -90,144 +90,153 @@ export class Lexer {
     }
 
     public getNextToken(): Token {
-        this.skipWhitespace();
+        while (true) {
+            this.skipWhitespace();
 
-        if (this.pos >= this.input.length) {
-            return { type: TokenType.EOF, value: '', line: this.line };
-        }
-
-        const char = this.peek();
-
-        // Handle single quote comment
-        if (char === "'") {
-            while (this.peek() !== '\n' && this.peek() !== '\0') {
-                this.advance();
-            }
-            return this.getNextToken();
-        }
-
-        if (char === '\n') {
-            this.advance();
-            return { type: TokenType.Newline, value: '\n', line: this.line - 1 };
-        }
-
-        if (char === '"') {
-            this.advance(); // consume opening quote
-            let strValue = '';
-            while (this.peek() !== '"' && this.peek() !== '\0') {
-                strValue += this.advance();
-            }
-            if (this.peek() === '"') {
-                this.advance(); // consume closing quote
-            }
-            return { type: TokenType.String, value: strValue, line: this.line };
-        }
-
-        if (char === '=') {
-            this.advance();
-            return { type: TokenType.OperatorEquals, value: '=', line: this.line };
-        }
-
-        if (char === '<') {
-            this.advance();
-            if (this.peek() === '>') {
-                this.advance();
-                return { type: TokenType.OperatorNotEquals, value: '<>', line: this.line };
-            }
-            if (this.peek() === '=') {
-                this.advance();
-                return { type: TokenType.OperatorLessThanOrEqual, value: '<=', line: this.line };
-            }
-            return { type: TokenType.OperatorLessThan, value: '<', line: this.line };
-        }
-
-        if (char === '>') {
-            this.advance();
-            if (this.peek() === '=') {
-                this.advance();
-                return { type: TokenType.OperatorGreaterThanOrEqual, value: '>=', line: this.line };
-            }
-            return { type: TokenType.OperatorGreaterThan, value: '>', line: this.line };
-        }
-
-        if (char === '+') {
-            this.advance();
-            return { type: TokenType.OperatorPlus, value: '+', line: this.line };
-        }
-
-        if (char === '-') {
-            this.advance();
-            return { type: TokenType.OperatorMinus, value: '-', line: this.line };
-        }
-
-        if (char === ',') {
-            this.advance();
-            return { type: TokenType.OperatorComma, value: ',', line: this.line };
-        }
-
-        if (char === '(') {
-            this.advance();
-            return { type: TokenType.OperatorLParen, value: '(', line: this.line };
-        }
-
-        if (char === ')') {
-            this.advance();
-            return { type: TokenType.OperatorRParen, value: ')', line: this.line };
-        }
-
-        if (char === '.') {
-            this.advance();
-            return { type: TokenType.OperatorDot, value: '.', line: this.line };
-        }
-
-        if (this.isDigit(char)) {
-            let numStr = '';
-            while (this.isDigit(this.peek())) {
-                numStr += this.advance();
-            }
-            return { type: TokenType.Number, value: numStr, line: this.line };
-        }
-
-        if (this.isAlpha(char)) {
-            let idStr = '';
-            while (this.isAlphaNumeric(this.peek())) {
-                idStr += this.advance();
+            if (this.pos >= this.input.length) {
+                return { type: TokenType.EOF, value: '', line: this.line };
             }
 
-            const lowerId = idStr.toLowerCase();
-            if (lowerId === 'rem') {
+            const char = this.peek();
+
+            // Handle single quote comment
+            if (char === "'") {
                 while (this.peek() !== '\n' && this.peek() !== '\0') {
                     this.advance();
                 }
-                return this.getNextToken();
+                continue; // Skip the comment and loop again to get the next valid token
             }
 
-            if (lowerId === 'for') return { type: TokenType.KeywordFor, value: idStr, line: this.line };
-            if (lowerId === 'to') return { type: TokenType.KeywordTo, value: idStr, line: this.line };
-            if (lowerId === 'next') return { type: TokenType.KeywordNext, value: idStr, line: this.line };
-            if (lowerId === 'if') return { type: TokenType.KeywordIf, value: idStr, line: this.line };
-            if (lowerId === 'then') return { type: TokenType.KeywordThen, value: idStr, line: this.line };
-            if (lowerId === 'elseif') return { type: TokenType.KeywordElseIf, value: idStr, line: this.line };
-            if (lowerId === 'else') return { type: TokenType.KeywordElse, value: idStr, line: this.line };
-            if (lowerId === 'end') return { type: TokenType.KeywordEnd, value: idStr, line: this.line };
-            if (lowerId === 'do') return { type: TokenType.KeywordDo, value: idStr, line: this.line };
-            if (lowerId === 'while') return { type: TokenType.KeywordWhile, value: idStr, line: this.line };
-            if (lowerId === 'loop') return { type: TokenType.KeywordLoop, value: idStr, line: this.line };
-            if (lowerId === 'sub') return { type: TokenType.KeywordSub, value: idStr, line: this.line };
-            if (lowerId === 'function') return { type: TokenType.KeywordFunction, value: idStr, line: this.line };
-            if (lowerId === 'dim') return { type: TokenType.KeywordDim, value: idStr, line: this.line };
-            if (lowerId === 'as') return { type: TokenType.KeywordAs, value: idStr, line: this.line };
-            if (lowerId === 'new') return { type: TokenType.KeywordNew, value: idStr, line: this.line };
-            if (lowerId === 'collection') return { type: TokenType.KeywordCollection, value: idStr, line: this.line };
-            if (lowerId === 'and') return { type: TokenType.KeywordAnd, value: idStr, line: this.line };
-            if (lowerId === 'or') return { type: TokenType.KeywordOr, value: idStr, line: this.line };
+            if (char === '\n') {
+                this.advance();
+                return { type: TokenType.Newline, value: '\n', line: this.line - 1 };
+            }
 
-            return { type: TokenType.Identifier, value: idStr, line: this.line };
-        }
+            if (char === '"') {
+                this.advance(); // consume opening quote
+                let strValue = '';
+                while (this.peek() !== '"' && this.peek() !== '\0') {
+                    strValue += this.advance();
+                }
+                if (this.peek() === '"') {
+                    this.advance(); // consume closing quote
+                }
+                return { type: TokenType.String, value: strValue, line: this.line };
+            }
 
-        // Unknown character
-        const unknownChar = this.advance();
-        return { type: TokenType.Unknown, value: unknownChar, line: this.line };
+            if (char === '=') {
+                this.advance();
+                return { type: TokenType.OperatorEquals, value: '=', line: this.line };
+            }
+
+            if (char === '<') {
+                this.advance();
+                if (this.peek() === '>') {
+                    this.advance();
+                    return { type: TokenType.OperatorNotEquals, value: '<>', line: this.line };
+                }
+                if (this.peek() === '=') {
+                    this.advance();
+                    return { type: TokenType.OperatorLessThanOrEqual, value: '<=', line: this.line };
+                }
+                return { type: TokenType.OperatorLessThan, value: '<', line: this.line };
+            }
+
+            if (char === '>') {
+                this.advance();
+                if (this.peek() === '=') {
+                    this.advance();
+                    return { type: TokenType.OperatorGreaterThanOrEqual, value: '>=', line: this.line };
+                }
+                return { type: TokenType.OperatorGreaterThan, value: '>', line: this.line };
+            }
+
+            if (char === '+') {
+                this.advance();
+                return { type: TokenType.OperatorPlus, value: '+', line: this.line };
+            }
+
+            if (char === '-') {
+                this.advance();
+                return { type: TokenType.OperatorMinus, value: '-', line: this.line };
+            }
+
+            if (char === ',') {
+                this.advance();
+                return { type: TokenType.OperatorComma, value: ',', line: this.line };
+            }
+
+            if (char === '(') {
+                this.advance();
+                return { type: TokenType.OperatorLParen, value: '(', line: this.line };
+            }
+
+            if (char === ')') {
+                this.advance();
+                return { type: TokenType.OperatorRParen, value: ')', line: this.line };
+            }
+
+            if (char === '.') {
+                this.advance();
+                return { type: TokenType.OperatorDot, value: '.', line: this.line };
+            }
+
+            if (this.isDigit(char)) {
+                let numStr = '';
+                while (this.isDigit(this.peek())) {
+                    numStr += this.advance();
+                }
+                // Check for VBA Type Declaration Suffixes for numbers (%, &, @, !, #)
+                const peekChar = this.peek();
+                if (['%', '&', '@', '!', '#'].includes(peekChar)) {
+                    numStr += this.advance();
+                }
+                return { type: TokenType.Number, value: numStr, line: this.line };
+            }
+
+            if (this.isAlpha(char)) {
+                let idStr = '';
+                while (this.isAlphaNumeric(this.peek())) {
+                    idStr += this.advance();
+                }
+
+                const lowerId = idStr.toLowerCase();
+                if (lowerId === 'rem') {
+                    while (this.peek() !== '\n' && this.peek() !== '\0') {
+                        this.advance();
+                    }
+                    // We've consumed the comment, now we need to get the actual next token.
+                    // Since we are inside the 'while(true)' loop, we can just continue.
+                    continue;
+                }
+
+                if (lowerId === 'for') return { type: TokenType.KeywordFor, value: idStr, line: this.line };
+                if (lowerId === 'to') return { type: TokenType.KeywordTo, value: idStr, line: this.line };
+                if (lowerId === 'next') return { type: TokenType.KeywordNext, value: idStr, line: this.line };
+                if (lowerId === 'if') return { type: TokenType.KeywordIf, value: idStr, line: this.line };
+                if (lowerId === 'then') return { type: TokenType.KeywordThen, value: idStr, line: this.line };
+                if (lowerId === 'elseif') return { type: TokenType.KeywordElseIf, value: idStr, line: this.line };
+                if (lowerId === 'else') return { type: TokenType.KeywordElse, value: idStr, line: this.line };
+                if (lowerId === 'end') return { type: TokenType.KeywordEnd, value: idStr, line: this.line };
+                if (lowerId === 'do') return { type: TokenType.KeywordDo, value: idStr, line: this.line };
+                if (lowerId === 'while') return { type: TokenType.KeywordWhile, value: idStr, line: this.line };
+                if (lowerId === 'loop') return { type: TokenType.KeywordLoop, value: idStr, line: this.line };
+                if (lowerId === 'sub') return { type: TokenType.KeywordSub, value: idStr, line: this.line };
+                if (lowerId === 'function') return { type: TokenType.KeywordFunction, value: idStr, line: this.line };
+                if (lowerId === 'dim') return { type: TokenType.KeywordDim, value: idStr, line: this.line };
+                if (lowerId === 'as') return { type: TokenType.KeywordAs, value: idStr, line: this.line };
+                if (lowerId === 'new') return { type: TokenType.KeywordNew, value: idStr, line: this.line };
+                if (lowerId === 'collection') return { type: TokenType.KeywordCollection, value: idStr, line: this.line };
+                if (lowerId === 'and') return { type: TokenType.KeywordAnd, value: idStr, line: this.line };
+                if (lowerId === 'or') return { type: TokenType.KeywordOr, value: idStr, line: this.line };
+
+                return { type: TokenType.Identifier, value: idStr, line: this.line };
+            }
+
+            // Unknown character
+            const unknownChar = this.advance();
+            return { type: TokenType.Unknown, value: unknownChar, line: this.line };
+        } // End of while(true) loop
     }
 
     public tokenize(): Token[] {

@@ -490,7 +490,9 @@ export class Parser {
         const token = this.advance();
         let expr: Expression;
         if (token.type === TokenType.Number) {
-            expr = { type: 'NumberLiteral', value: parseFloat(token.value) } as NumberLiteral;
+            // Remove VBA type suffix (%, &, @, !, #) before parsing into a float
+            const cleanVal = token.value.replace(/[%&@!#]$/, '');
+            expr = { type: 'NumberLiteral', value: parseFloat(cleanVal) } as NumberLiteral;
         } else if (token.type === TokenType.String) {
             expr = { type: 'StringLiteral', value: token.value } as StringLiteral;
         } else if (token.type === TokenType.Identifier) {

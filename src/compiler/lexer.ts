@@ -5,7 +5,6 @@ export enum TokenType {
     KeywordFor,
     KeywordTo,
     KeywordNext,
-    KeywordDebugPrint,
     KeywordIf,
     KeywordThen,
     KeywordElseIf,
@@ -183,7 +182,7 @@ export class Lexer {
 
         if (this.isAlpha(char)) {
             let idStr = '';
-            while (this.isAlphaNumeric(this.peek()) || this.peek() === '.') {
+            while (this.isAlphaNumeric(this.peek())) {
                 idStr += this.advance();
             }
 
@@ -207,7 +206,6 @@ export class Lexer {
             if (lowerId === 'collection') return { type: TokenType.KeywordCollection, value: idStr, line: this.line };
             if (lowerId === 'and') return { type: TokenType.KeywordAnd, value: idStr, line: this.line };
             if (lowerId === 'or') return { type: TokenType.KeywordOr, value: idStr, line: this.line };
-            if (lowerId === 'debug.print') return { type: TokenType.KeywordDebugPrint, value: idStr, line: this.line };
 
             return { type: TokenType.Identifier, value: idStr, line: this.line };
         }

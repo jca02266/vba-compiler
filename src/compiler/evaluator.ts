@@ -4,7 +4,6 @@ import {
     ForStatement,
     IfStatement,
     DoWhileStatement,
-    DebugPrintStatement,
     Expression,
     BinaryExpression,
     Identifier,
@@ -83,6 +82,10 @@ export class Evaluator {
     constructor(onPrint: PrintCallback) {
         this.env = new Environment();
         this.onPrint = onPrint;
+        // Add built-in debug object
+        this.env.set('debug', {
+            print: (...args: any[]) => this.onPrint(args.join(' '))
+        });
     }
 
     public evaluate(program: Program) {
@@ -113,9 +116,6 @@ export class Evaluator {
                 break;
             case 'CallStatement':
                 this.evaluateCallStatement(stmt as CallStatement);
-                break;
-            case 'DebugPrintStatement':
-                this.evaluateDebugPrintStatement(stmt as DebugPrintStatement);
                 break;
             default:
                 throw new Error(`Execution error: Unknown statement type ${stmt.type}`);
@@ -204,11 +204,6 @@ export class Evaluator {
 
     private evaluateCallStatement(stmt: CallStatement) {
         this.evaluateExpression(stmt.expression);
-    }
-
-    private evaluateDebugPrintStatement(stmt: DebugPrintStatement) {
-        const val = this.evaluateExpression(stmt.expression);
-        this.onPrint(String(val));
     }
 
     private evaluateExpression(expr: Expression): any {

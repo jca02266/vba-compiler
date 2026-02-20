@@ -33,11 +33,6 @@ export interface DoWhileStatement extends Statement {
     body: Statement[];
 }
 
-export interface DebugPrintStatement extends Statement {
-    type: 'DebugPrintStatement';
-    expression: Expression;
-}
-
 export interface Parameter extends ASTNode {
     type: 'Parameter';
     name: string;
@@ -171,11 +166,9 @@ export class Parser {
             return this.parseProcedureDeclaration();
         } else if (token.type === TokenType.KeywordDim) {
             return this.parseDimStatement();
-        } else if (token.type === TokenType.KeywordDebugPrint) {
-            return this.parseDebugPrintStatement();
         } else if (token.type === TokenType.Identifier) {
             // Unify assignment, array access, method call
-            const expr = this.parseExpression(); // will parse `foo`, `foo()`, `foo.bar`, `arr(0)` etc
+            const expr = this.parsePrimary(); // will parse `foo`, `foo()`, `foo.bar`, `arr(0)` etc
 
             if (this.match(TokenType.OperatorEquals)) {
                 return {
@@ -425,15 +418,6 @@ export class Parser {
             type: 'DoWhileStatement',
             condition,
             body
-        };
-    }
-
-    private parseDebugPrintStatement(): DebugPrintStatement {
-        this.advance(); // consume 'Debug.Print'
-        const expression = this.parseExpression();
-        return {
-            type: 'DebugPrintStatement',
-            expression
         };
     }
 

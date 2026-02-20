@@ -2,7 +2,7 @@ import { runVBATest, assert } from './test-runner';
 
 async function main() {
     console.log("--- Starting VBA Unit Tests ---");
-    const vbaFile = 'tests/vba/test_refactored.vba';
+    const vbaFile = 'src/vba/TaskScheduler_Core.vba';
 
     // Test #1: CalcBaseStartIdx
     console.log("\n[Test Suite] CalcBaseStartIdx");

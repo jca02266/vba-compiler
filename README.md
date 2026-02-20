@@ -7,11 +7,17 @@ Excelがない環境で、作成したVBAコードの動作確認、リファク
 - **リファクタリングの支援**: 巨大なVBAコードベースから純粋な関数・サブルーチンを安全に切り出し、モジュールを整理するための検証基盤を提供します。
 - **ユニットテストの実行**: TypeScriptを利用したテストランナーを通じて、抽出されたVBA関数に対して直接モックデータやアサーションを評価し、プログラムによるテスト自動化を可能にします。
 
-## ディレクトリ構成
+## ディレクトリ構成とVBAサンプルコード
+本プロジェクトでは、巨大なVBAマクロを「テスト可能な単位」にリファクタリングする事例として、以下の構成を採用しています。
+
 - `src/compiler/` - TypeScriptで書かれたVBA用Lexer、Parser、Evaluatorのコアエンジン群。
-- `src/` - React を用いたWeb IDE（エディタ、コンソール出力）のUIソース。
-- `tests/vba/` - リファクタリング対象の元のVBAスクリプトおよび、整理抽出された関数が含まれるVBAファイル群 (`test.vba`, `test_refactored.vba`)。
-- `tests/ts/` - Node.js 上で評価器を直接バインディングし、自動テストを走らせるTypeScriptのテストランナー・スイート。
+- `src/vba/` - 本番稼働を想定したプロダクションコード。
+  - `TaskScheduler.vba`: 処理の見通しが良くなったリファクタリング**後**のメインルーチン。
+  - `TaskScheduler_Core.vba`: `TaskScheduler.vba` から抽出された、純粋なビジネスロジック関数モジュール（**ユニットテストの対象**）。
+- `tests/vba_legacy/` - 参照用のレガシーコード。
+  - `TaskScheduler_v1.vba`: リファクタリング**前**の、機能が密結合した巨大なオリジナルソース。
+- `tests/ts/` - Node.js 上でVBAスクリプトをAST評価し、自動テストを走らせるTypeScriptスクリプト群。
+  - `TaskScheduler_Core.test.ts`: `TaskScheduler_Core.vba` 内の各関数の振る舞いを検証するユニットテスト。
 
 ## 使い方（UI画面の起動）
 ブラウザ上でVBAエディタ環境を立ち上げ、`Debug.Print` クラスの動作などを確認します。
@@ -25,9 +31,9 @@ npm run dev
 ```
 
 ## 自動テストの実行
-CLIからTypeScriptのテストランナーをコールし、`tests/vba/` 内のモジュールを評価してアサーションを実行します。
+CLIからTypeScriptのテストランナーを利用し、`TaskScheduler_Core.vba` 内の抽出された関数を直接評価・検証します。
 
 ```bash
-# バンドルしてCJSスクリプトを実行
-npx esbuild tests/ts/run.ts --bundle --outfile=tests/ts/run.cjs --platform=node && node tests/ts/run.cjs
+# バンドルしてテスト（AST構築・検証）を実行
+npx esbuild tests/ts/TaskScheduler_Core.test.ts --bundle --outfile=tests/ts/TaskScheduler_Core.test.cjs --platform=node && node tests/ts/TaskScheduler_Core.test.cjs
 ```

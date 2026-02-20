@@ -16,6 +16,7 @@ export interface ForStatement extends Statement {
     identifier: Identifier;
     start: Expression;
     end: Expression;
+    step?: Expression;
     body: Statement[];
     nextIdentifier?: Identifier;
 }
@@ -46,13 +47,55 @@ export interface ProcedureDeclaration extends Statement {
     body: Statement[];
 }
 
-export interface VariableDeclaration extends Statement {
-    type: 'VariableDeclaration';
+export interface VariableDeclarator {
     name: Identifier;
     isArray: boolean;
-    arraySize?: Expression;
+    arraySize?: Expression; // TODO: Array size should ideally support multiple dimensions
     isNew: boolean;
     objectType?: string;
+}
+
+export interface VariableDeclaration extends Statement {
+    type: 'VariableDeclaration';
+    declarations: VariableDeclarator[];
+}
+
+export interface ConstDeclaration extends Statement {
+    type: 'ConstDeclaration';
+    name: Identifier;
+    value: Expression;
+}
+
+export interface SetStatement extends Statement {
+    type: 'SetStatement';
+    left: Expression;
+    right: Expression;
+}
+
+export interface OnErrorStatement extends Statement {
+    type: 'OnErrorStatement';
+    label: string; // "Cleanup", "Resume Next", "0"
+}
+
+export interface EraseStatement extends Statement {
+    type: 'EraseStatement';
+    name: Identifier;
+}
+
+export interface ReDimStatement extends Statement {
+    type: 'ReDimStatement';
+    name: Identifier;
+    bounds: Expression[]; // Multi-dimensional bounds (e.g. 1 To numDays)
+}
+
+export interface ExitStatement extends Statement {
+    type: 'ExitStatement';
+    exitType: 'For' | 'Do' | 'Sub' | 'Function';
+}
+
+export interface LabelStatement extends Statement {
+    type: 'LabelStatement';
+    label: string;
 }
 
 export interface AssignmentStatement extends Statement {
@@ -100,6 +143,12 @@ export interface BinaryExpression extends Expression {
     operator: string;
     left: Expression;
     right: Expression;
+}
+
+export interface UnaryExpression extends Expression {
+    type: 'UnaryExpression';
+    operator: string;
+    argument: Expression;
 }
 
 export class Parser {
@@ -166,7 +215,33 @@ export class Parser {
             return this.parseProcedureDeclaration();
         } else if (token.type === TokenType.KeywordDim) {
             return this.parseDimStatement();
+        } else if (token.type === TokenType.KeywordConst) {
+            return this.parseConstDeclaration();
+        } else if (token.type === TokenType.KeywordSet) {
+            return this.parseSetStatement();
+        } else if (token.type === TokenType.KeywordOn) {
+            return this.parseOnErrorStatement();
+        } else if (token.type === TokenType.KeywordExit) {
+            return this.parseExitStatement();
+        } else if (token.type === TokenType.KeywordErase) {
+            return this.parseEraseStatement();
+        } else if (token.type === TokenType.KeywordReDim) {
+            return this.parseReDimStatement();
+        } else if (token.type === TokenType.KeywordOption) {
+            this.advance(); // 'Option'
+            if (this.match(TokenType.KeywordExplicit)) {
+                // Ignore for now
+            }
+            return null;
         } else if (token.type === TokenType.Identifier) {
+            // Check if it's a label "Identifier:"
+            if (this.pos + 1 < this.tokens.length && this.tokens[this.pos + 1].type === TokenType.OperatorColon) {
+                const labelName = token.value;
+                this.advance(); // consume Identifier
+                this.advance(); // consume ':'
+                return { type: 'LabelStatement', label: labelName } as any;
+            }
+
             // Unify assignment, array access, method call
             const expr = this.parsePrimary(); // will parse `foo`, `foo()`, `foo.bar`, `arr(0)` etc
 
@@ -227,15 +302,44 @@ export class Parser {
 
         if (this.match(TokenType.OperatorLParen)) {
             if (this.peek().type !== TokenType.OperatorRParen) {
-                const paramName = this.advance();
+                let paramNameToken = this.peek();
+                if (paramNameToken.type === TokenType.KeywordByVal || paramNameToken.type === TokenType.KeywordByRef) {
+                    this.advance(); // consume ByVal/ByRef
+                    paramNameToken = this.peek();
+                }
+
+                let paramName = this.advance(); // consume name
+
+                // Optional parameter type (e.g. 'As Long')
+                if (this.match(TokenType.KeywordAs)) {
+                    this.advance(); // consume Type name
+                }
+
                 parameters.push({ type: 'Parameter', name: paramName.value });
+
                 while (this.match(TokenType.OperatorComma)) {
-                    parameters.push({ type: 'Parameter', name: this.advance().value });
+                    // Optional ByVal/ByRef
+                    let nextParamToken = this.peek();
+                    if (nextParamToken.type === TokenType.KeywordByVal || nextParamToken.type === TokenType.KeywordByRef) {
+                        this.advance(); // consume ByVal/ByRef
+                        nextParamToken = this.peek();
+                    }
+                    paramName = this.advance(); // consume name
+
+                    if (this.match(TokenType.KeywordAs)) {
+                        this.advance(); // consume Type name
+                    }
+                    parameters.push({ type: 'Parameter', name: paramName.value });
                 }
             }
             if (!this.match(TokenType.OperatorRParen)) {
                 throw new Error(`Parse error: Expected ')' at line ${this.peek().line}`);
             }
+        }
+
+        // Optional Function return type (e.g. 'As Long')
+        if (this.match(TokenType.KeywordAs)) {
+            this.advance(); // consume Type name
         }
 
         this.skipNewlines();
@@ -260,31 +364,144 @@ export class Parser {
 
     private parseDimStatement(): VariableDeclaration {
         this.advance(); // 'Dim'
-        const idToken = this.advance();
-        const name: Identifier = { type: 'Identifier', name: idToken.value };
+        const declarations: VariableDeclarator[] = [];
 
-        let isArray = false;
-        let arraySize: Expression | undefined;
-        let isNew = false;
-        let objectType: string | undefined;
+        while (true) {
+            const idToken = this.advance();
+            const name: Identifier = { type: 'Identifier', name: idToken.value };
+
+            let isArray = false;
+            let arraySize: Expression | undefined;
+            let isNew = false;
+            let objectType: string | undefined;
+
+            if (this.match(TokenType.OperatorLParen)) {
+                isArray = true;
+                if (this.peek().type !== TokenType.OperatorRParen) {
+                    arraySize = this.parseExpression();
+                }
+                this.match(TokenType.OperatorRParen);
+            }
+
+            if (this.match(TokenType.KeywordAs)) {
+                if (this.match(TokenType.KeywordNew)) {
+                    isNew = true;
+                }
+                const typeToken = this.peek();
+                if (typeToken.type === TokenType.KeywordCollection || typeToken.type === TokenType.Identifier) {
+                    objectType = this.advance().value;
+                }
+            }
+
+            declarations.push({ name, isArray, arraySize, isNew, objectType });
+
+            if (this.match(TokenType.OperatorComma)) {
+                continue;
+            } else {
+                break;
+            }
+        }
+
+        return { type: 'VariableDeclaration', declarations };
+    }
+
+    private parseConstDeclaration(): ConstDeclaration {
+        this.advance(); // 'Const'
+        const idToken = this.advance();
+        if (idToken.type !== TokenType.Identifier) throw new Error(`Parse error: Expected identifier after Const at line ${idToken.line}`);
+        const name = { type: 'Identifier', name: idToken.value } as Identifier;
+
+        // Optional 'As Type'
+        if (this.match(TokenType.KeywordAs)) {
+            this.advance(); // Ignore Type for now
+        }
+
+        if (!this.match(TokenType.OperatorEquals)) throw new Error(`Parse error: Expected '=' in Const at line ${this.peek().line}`);
+        const value = this.parseExpression();
+
+        return { type: 'ConstDeclaration', name, value };
+    }
+
+    private parseSetStatement(): SetStatement {
+        this.advance(); // 'Set'
+        const left = this.parsePrimary(); // parse identifier or member access
+        if (!this.match(TokenType.OperatorEquals)) throw new Error(`Parse error: Expected '=' in Set statement at line ${this.peek().line}`);
+        const right = this.parseExpression();
+        return { type: 'SetStatement', left, right };
+    }
+
+    private parseOnErrorStatement(): OnErrorStatement {
+        this.advance(); // 'On'
+        if (!this.match(TokenType.KeywordError)) throw new Error(`Parse error: Expected 'Error' after 'On' at line ${this.peek().line}`);
+
+        let label = '';
+        if (this.match(TokenType.KeywordGoTo)) {
+            const labelToken = this.advance(); // Identifier or 0
+            label = labelToken.value;
+        } else {
+            // "Resume Next" fallback
+            while (this.peek().type !== TokenType.Newline && this.peek().type !== TokenType.EOF) {
+                label += this.advance().value + ' ';
+            }
+            label = label.trim();
+        }
+        return { type: 'OnErrorStatement', label };
+    }
+
+    private parseExitStatement(): ExitStatement {
+        this.advance(); // 'Exit'
+        const typeToken = this.advance();
+        let exitType: 'For' | 'Do' | 'Sub' | 'Function';
+
+        if (typeToken.type === TokenType.KeywordFor) {
+            exitType = 'For';
+        } else if (typeToken.type === TokenType.KeywordDo) {
+            exitType = 'Do';
+        } else if (typeToken.type === TokenType.KeywordSub) {
+            exitType = 'Sub';
+        } else if (typeToken.type === TokenType.KeywordFunction) {
+            exitType = 'Function';
+        } else {
+            throw new Error(`Parse error: Unexpected token after Exit '${typeToken.value}' at line ${typeToken.line} `);
+        }
+
+        return { type: 'ExitStatement', exitType };
+    }
+
+    private parseEraseStatement(): EraseStatement {
+        this.advance(); // 'Erase'
+        const idToken = this.advance();
+        const name = { type: 'Identifier', name: idToken.value } as Identifier;
+        return { type: 'EraseStatement', name };
+    }
+
+    private parseReDimStatement(): ReDimStatement {
+        this.advance(); // 'ReDim'
+
+        // Optional 'Preserve' keyword
+        if (this.peek().type === TokenType.Identifier && this.peek().value.toLowerCase() === 'preserve') {
+            this.advance();
+        }
+
+        const idToken = this.advance();
+        const name = { type: 'Identifier', name: idToken.value } as Identifier;
+        const bounds: Expression[] = [];
 
         if (this.match(TokenType.OperatorLParen)) {
-            isArray = true;
-            arraySize = this.parseExpression();
+            if (this.peek().type !== TokenType.OperatorRParen) {
+                bounds.push(this.parseExpression());
+                while (this.match(TokenType.KeywordTo) || this.match(TokenType.OperatorComma)) {
+                    bounds.push(this.parseExpression());
+                }
+            }
             this.match(TokenType.OperatorRParen);
         }
 
         if (this.match(TokenType.KeywordAs)) {
-            if (this.match(TokenType.KeywordNew)) {
-                isNew = true;
-            }
-            const typeToken = this.peek();
-            if (typeToken.type === TokenType.KeywordCollection || typeToken.type === TokenType.Identifier) {
-                objectType = this.advance().value;
-            }
+            this.advance();
         }
 
-        return { type: 'VariableDeclaration', name, isArray, arraySize, isNew, objectType };
+        return { type: 'ReDimStatement', name, bounds };
     }
 
     private parseForStatement(): ForStatement {
@@ -292,21 +509,26 @@ export class Parser {
 
         const idToken = this.advance();
         if (idToken.type !== TokenType.Identifier) {
-            throw new Error(`Parse error: Expected identifier after 'For' at line ${idToken.line}`);
+            throw new Error(`Parse error: Expected identifier after 'For' at line ${idToken.line} `);
         }
         const identifier: Identifier = { type: 'Identifier', name: idToken.value };
 
         if (!this.match(TokenType.OperatorEquals)) {
-            throw new Error(`Parse error: Expected '=' in For statement at line ${this.peek().line}`);
+            throw new Error(`Parse error: Expected '=' in For statement at line ${this.peek().line} `);
         }
 
         const startExpr = this.parseExpression();
 
         if (!this.match(TokenType.KeywordTo)) {
-            throw new Error(`Parse error: Expected 'To' in For statement at line ${this.peek().line}`);
+            throw new Error(`Parse error: Expected 'To' in For statement at line ${this.peek().line} `);
         }
 
         const endExpr = this.parseExpression();
+
+        let stepExpr: Expression | undefined;
+        if (this.match(TokenType.KeywordStep)) {
+            stepExpr = this.parseExpression();
+        }
 
         this.skipNewlines();
 
@@ -318,7 +540,7 @@ export class Parser {
         }
 
         if (!this.match(TokenType.KeywordNext)) {
-            throw new Error(`Parse error: Expected 'Next' at line ${this.peek().line}`);
+            throw new Error(`Parse error: Expected 'Next' at line ${this.peek().line} `);
         }
 
         let nextIdentifier: Identifier | undefined;
@@ -332,6 +554,7 @@ export class Parser {
             identifier,
             start: startExpr,
             end: endExpr,
+            step: stepExpr,
             body,
             nextIdentifier
         };
@@ -347,10 +570,27 @@ export class Parser {
             throw new Error(`Parse error: Expected 'Then' after condition at line ${this.peek().line}`);
         }
 
-        this.skipNewlines();
+        const isMultiLine = this.peek().type === TokenType.Newline;
 
         const consequent: Statement[] = [];
         let alternate: Statement[] | IfStatement | null = null;
+
+        if (!isMultiLine) {
+            // Single-line If
+            while (this.peek().type !== TokenType.Newline && this.peek().type !== TokenType.EOF) {
+                const stmt = this.parseStatement();
+                if (stmt) consequent.push(stmt);
+            }
+            // No End If expected
+            return {
+                type: 'IfStatement',
+                condition,
+                consequent,
+                alternate
+            };
+        }
+
+        this.skipNewlines();
 
         while (
             this.peek().type !== TokenType.KeywordEnd &&
@@ -397,7 +637,7 @@ export class Parser {
     private parseDoWhileStatement(): DoWhileStatement {
         this.advance(); // consume 'Do'
         if (!this.match(TokenType.KeywordWhile)) {
-            throw new Error(`Parse error: Expected 'While' after 'Do' at line ${this.peek().line}`);
+            throw new Error(`Parse error: Expected 'While' after 'Do' at line ${this.peek().line} `);
         }
 
         const condition = this.parseExpression();
@@ -411,7 +651,7 @@ export class Parser {
         }
 
         if (!this.match(TokenType.KeywordLoop)) {
-            throw new Error(`Parse error: Expected 'Loop' at line ${this.peek().line}`);
+            throw new Error(`Parse error: Expected 'Loop' at line ${this.peek().line} `);
         }
 
         return {
@@ -436,13 +676,21 @@ export class Parser {
     }
 
     private parseLogicalAnd(): Expression {
-        let left = this.parseEquality();
+        let left = this.parseLogicalNot();
         while (this.peek().type === TokenType.KeywordAnd) {
             const operator = this.advance().value;
-            const right = this.parseEquality();
+            const right = this.parseLogicalNot();
             left = { type: 'BinaryExpression', operator, left, right } as BinaryExpression;
         }
         return left;
+    }
+
+    private parseLogicalNot(): Expression {
+        if (this.match(TokenType.KeywordNot)) {
+            const argument = this.parseEquality();
+            return { type: 'UnaryExpression', operator: 'Not', argument } as UnaryExpression;
+        }
+        return this.parseEquality();
     }
 
     private parseEquality(): Expression {
@@ -474,11 +722,63 @@ export class Parser {
     }
 
     private parseAdditive(): Expression {
-        let left = this.parsePrimary();
+        let left = this.parseModulo();
         while (
             this.peek().type === TokenType.OperatorPlus ||
             this.peek().type === TokenType.OperatorMinus
         ) {
+            const operator = this.advance().value;
+            const right = this.parseModulo();
+            left = { type: 'BinaryExpression', operator, left, right } as BinaryExpression;
+        }
+        return left;
+    }
+
+    private parseModulo(): Expression {
+        let left = this.parseIntDivision();
+        while (this.peek().type === TokenType.KeywordMod) {
+            const operator = this.advance().value;
+            const right = this.parseIntDivision();
+            left = { type: 'BinaryExpression', operator, left, right } as BinaryExpression;
+        }
+        return left;
+    }
+
+    private parseIntDivision(): Expression {
+        let left = this.parseMultiplicative();
+        while (this.peek().type === TokenType.OperatorIntDivide) {
+            const operator = this.advance().value;
+            const right = this.parseMultiplicative();
+            left = { type: 'BinaryExpression', operator, left, right } as BinaryExpression;
+        }
+        return left;
+    }
+
+    private parseMultiplicative(): Expression {
+        let left = this.parseUnary();
+        while (
+            this.peek().type === TokenType.OperatorMultiply ||
+            this.peek().type === TokenType.OperatorDivide
+        ) {
+            const operator = this.advance().value;
+            const right = this.parseUnary();
+            left = { type: 'BinaryExpression', operator, left, right } as BinaryExpression;
+        }
+        return left;
+    }
+
+    private parseUnary(): Expression {
+        if (this.peek().type === TokenType.OperatorMinus || this.peek().type === TokenType.OperatorPlus) {
+            const operator = this.advance().value;
+            const argument = this.parseUnary();
+            return { type: 'UnaryExpression', operator, argument } as UnaryExpression;
+        }
+        return this.parseExponentiation();
+    }
+
+    private parseExponentiation(): Expression {
+        let left = this.parsePrimary();
+        while (this.peek().type === TokenType.OperatorPower) {
             const operator = this.advance().value;
             const right = this.parsePrimary();
             left = { type: 'BinaryExpression', operator, left, right } as BinaryExpression;
@@ -497,8 +797,15 @@ export class Parser {
             expr = { type: 'StringLiteral', value: token.value } as StringLiteral;
         } else if (token.type === TokenType.Identifier) {
             expr = { type: 'Identifier', name: token.value } as Identifier;
+        } else if (token.type === TokenType.KeywordEmpty) {
+            expr = { type: 'Identifier', name: token.value } as Identifier;
+        } else if (token.type === TokenType.OperatorLParen) {
+            expr = this.parseExpression();
+            if (!this.match(TokenType.OperatorRParen)) {
+                throw new Error(`Parse error: Expected ')' at line ${this.peek().line} `);
+            }
         } else {
-            throw new Error(`Parse error: Unexpected token in expression '${token.value}' at line ${token.line}`);
+            throw new Error(`Parse error: Unexpected token in expression '${token.value}' at line ${token.line} `);
         }
 
         while (true) {
@@ -515,7 +822,7 @@ export class Parser {
                     }
                 }
                 if (!this.match(TokenType.OperatorRParen)) {
-                    throw new Error(`Parse error: Expected ')' at line ${this.peek().line}`);
+                    throw new Error(`Parse error: Expected ')' at line ${this.peek().line} `);
                 }
                 expr = { type: 'CallExpression', callee: expr, args } as CallExpression;
             } else {

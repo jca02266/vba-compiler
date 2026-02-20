@@ -21,8 +21,28 @@ export enum TokenType {
     KeywordCollection,
     KeywordAnd,
     KeywordOr,
+    KeywordNot,
+    KeywordOption,
+    KeywordExplicit,
+    KeywordConst,
+    KeywordSet,
+    KeywordOn,
+    KeywordError,
+    KeywordGoTo,
+    KeywordErase,
+    KeywordReDim,
+    KeywordStep,
+    KeywordEmpty,
+    KeywordExit,
+    KeywordByRef,
+    KeywordByVal,
     OperatorPlus,
     OperatorMinus,
+    OperatorMultiply,
+    OperatorDivide,
+    OperatorIntDivide,
+    KeywordMod,
+    OperatorPower,
     OperatorEquals,
     OperatorNotEquals,
     OperatorLessThan,
@@ -33,6 +53,7 @@ export enum TokenType {
     OperatorLParen,
     OperatorRParen,
     OperatorDot,
+    OperatorColon,
     Newline,
     EOF,
     Unknown
@@ -181,14 +202,25 @@ export class Lexer {
                 return { type: TokenType.OperatorDot, value: '.', line: this.line };
             }
 
+            if (char === ':') {
+                this.advance();
+                return { type: TokenType.OperatorColon, value: ':', line: this.line };
+            }
+
             if (this.isDigit(char)) {
                 let numStr = '';
                 while (this.isDigit(this.peek())) {
                     numStr += this.advance();
                 }
+                if (this.peek() === '.') {
+                    numStr += this.advance();
+                    while (this.isDigit(this.peek())) {
+                        numStr += this.advance();
+                    }
+                }
                 // Check for VBA Type Declaration Suffixes for numbers (%, &, @, !, #)
                 const peekChar = this.peek();
-                if (['%', '&', '@', '!', '#'].includes(peekChar)) {
+                if (['%', '&', '@', '!', '#'].indexOf(peekChar) !== -1) {
                     numStr += this.advance();
                 }
                 return { type: TokenType.Number, value: numStr, line: this.line };
@@ -229,8 +261,41 @@ export class Lexer {
                 if (lowerId === 'collection') return { type: TokenType.KeywordCollection, value: idStr, line: this.line };
                 if (lowerId === 'and') return { type: TokenType.KeywordAnd, value: idStr, line: this.line };
                 if (lowerId === 'or') return { type: TokenType.KeywordOr, value: idStr, line: this.line };
+                if (lowerId === 'not') return { type: TokenType.KeywordNot, value: idStr, line: this.line };
+                if (lowerId === 'option') return { type: TokenType.KeywordOption, value: idStr, line: this.line };
+                if (lowerId === 'explicit') return { type: TokenType.KeywordExplicit, value: idStr, line: this.line };
+                if (lowerId === 'const') return { type: TokenType.KeywordConst, value: idStr, line: this.line };
+                if (lowerId === 'set') return { type: TokenType.KeywordSet, value: idStr, line: this.line };
+                if (lowerId === 'on') return { type: TokenType.KeywordOn, value: idStr, line: this.line };
+                if (lowerId === 'error') return { type: TokenType.KeywordError, value: idStr, line: this.line };
+                if (lowerId === 'goto') return { type: TokenType.KeywordGoTo, value: idStr, line: this.line };
+                if (lowerId === 'erase') return { type: TokenType.KeywordErase, value: idStr, line: this.line };
+                if (lowerId === 'redim') return { type: TokenType.KeywordReDim, value: idStr, line: this.line };
+                if (lowerId === 'step') return { type: TokenType.KeywordStep, value: idStr, line: this.line };
+                if (lowerId === 'empty') return { type: TokenType.KeywordEmpty, value: idStr, line: this.line };
+                if (lowerId === 'exit') return { type: TokenType.KeywordExit, value: idStr, line: this.line };
+                if (lowerId === 'byref') return { type: TokenType.KeywordByRef, value: idStr, line: this.line };
+                if (lowerId === 'byval') return { type: TokenType.KeywordByVal, value: idStr, line: this.line };
+                if (lowerId === 'mod') return { type: TokenType.KeywordMod, value: idStr, line: this.line };
 
                 return { type: TokenType.Identifier, value: idStr, line: this.line };
+            }
+
+            if (char === '*') {
+                this.advance();
+                return { type: TokenType.OperatorMultiply, value: '*', line: this.line };
+            }
+            if (char === '/') {
+                this.advance();
+                return { type: TokenType.OperatorDivide, value: '/', line: this.line };
+            }
+            if (char === '\\') {
+                this.advance();
+                return { type: TokenType.OperatorIntDivide, value: '\\', line: this.line };
+            }
+            if (char === '^') {
+                this.advance();
+                return { type: TokenType.OperatorPower, value: '^', line: this.line };
             }
 
             // Unknown character

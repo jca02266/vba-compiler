@@ -5,6 +5,7 @@ import {
     IfStatement,
     DoWhileStatement,
     Expression,
+    UnaryExpression,
     BinaryExpression,
     Identifier,
     NumberLiteral,
@@ -14,8 +15,16 @@ import {
     VariableDeclaration,
     CallStatement,
     CallExpression,
-    MemberExpression
+    MemberExpression,
+    ConstDeclaration,
+    SetStatement,
+    EraseStatement,
+    ReDimStatement,
+    ExitStatement,
+    LabelStatement
 } from './parser';
+
+export const EmptyVBA = null;
 
 export class Environment {
     private variables: Map<string, any> = new Map();
@@ -39,6 +48,10 @@ export class Environment {
         }
         // If not found, implicitly declare locally
         this.variables.set(key, value);
+    }
+
+    setLocally(name: string, value: any) {
+        this.variables.set(name.toLowerCase(), value);
     }
 
     get(name: string): any {
@@ -86,6 +99,89 @@ export class Evaluator {
         this.env.set('debug', {
             print: (...args: any[]) => this.onPrint(args.join(' '))
         });
+
+        // Add typical VBA built-ins
+        this.env.set('isempty', (val: any) => val === undefined || val === null || val === '' || val === 0);
+        this.env.set('isnumeric', (val: any) => !isNaN(parseFloat(val)) && isFinite(val));
+        this.env.set('cdbl', (val: any) => parseFloat(val) || 0);
+        this.env.set('clng', (val: any) => Math.round(parseFloat(val)) || 0);
+        this.env.set('int', (val: any) => Math.floor(parseFloat(val)) || 0);
+        this.env.set('ucase', (val: any) => String(val || '').toUpperCase());
+        this.env.set('trim', (val: any) => String(val || '').trim());
+        this.env.set('ubound', (arr: any[]) => {
+            if (Array.isArray(arr)) return arr.length - 1; // Assuming 0-indexed in JS
+            return 0;
+        });
+        this.env.set('createobject', (progId: string) => {
+            if (progId.toLowerCase() === 'scripting.dictionary') {
+                const dict = new Map<string, any>();
+                return {
+                    add: (k: string, v: any) => dict.set(k, v),
+                    exists: (k: string) => dict.has(k),
+                    items: () => Array.from(dict.values()),
+                    keys: () => Array.from(dict.keys())
+                };
+            }
+            throw new Error(`Execution error: Unsupported CreateObject '${progId}'`);
+        });
+
+        // Add VBA intrinsic constants
+        this.env.set('true', true);
+        this.env.set('false', false);
+        this.env.set('empty', EmptyVBA);
+    }
+
+    public get(name: string): any {
+        return this.env.get(name);
+    }
+
+    public callProcedure(name: string, args: any[]): any {
+        const procName = name.toLowerCase();
+        const proc = this.env.getProcedure(procName);
+
+        if (!proc) {
+            throw new Error(`Execution error: Procedure '${name}' not found`);
+        }
+
+        // Create a new local environment for the procedure call
+        const localEnv = new Environment(this.env);
+
+        // Map arguments to parameter names
+        for (let i = 0; i < proc.parameters.length; i++) {
+            const paramName = proc.parameters[i].name;
+            const argValue = i < args.length ? args[i] : EmptyVBA;
+            localEnv.setLocally(paramName, argValue);
+        }
+
+        // Save current env and swap to local
+        const previousEnv = this.env;
+        this.env = localEnv;
+
+        try {
+            // Execute procedure body
+            for (const stmt of proc.body) {
+                this.evaluateStatement(stmt);
+            }
+        } catch (e: any) {
+            if (e && e.type === 'Exit') {
+                if ((e.target === 'Function' && proc.isFunction) || (e.target === 'Sub' && !proc.isFunction)) {
+                    // Valid exit, caught and swallowed
+                } else {
+                    throw e; // Unhandled exit type
+                }
+            } else {
+                throw e; // Real error
+            }
+        } finally {
+            // Restore previous environment
+            this.env = previousEnv;
+        }
+
+        // Return the function value if it was a function
+        if (proc.isFunction) {
+            return localEnv.get(procName);
+        }
+        return EmptyVBA;
     }
 
     public evaluate(program: Program) {
@@ -117,21 +213,60 @@ export class Evaluator {
             case 'CallStatement':
                 this.evaluateCallStatement(stmt as CallStatement);
                 break;
+            case 'ConstDeclaration':
+                this.evaluateConstDeclaration(stmt as ConstDeclaration);
+                break;
+            case 'SetStatement':
+                this.evaluateSetStatement(stmt as SetStatement);
+                break;
+            case 'OnErrorStatement':
+                // Ignore for now (No-op)
+                break;
+            case 'EraseStatement':
+                this.evaluateEraseStatement(stmt as EraseStatement);
+                break;
+            case 'ReDimStatement':
+                this.evaluateReDimStatement(stmt as ReDimStatement);
+                break;
+            case 'ExitStatement':
+                this.evaluateExitStatement(stmt as ExitStatement);
+                break;
+            case 'LabelStatement':
+                // No-op for now. Label execution just passes through.
+                break;
             default:
                 throw new Error(`Execution error: Unknown statement type ${stmt.type}`);
         }
     }
 
     private evaluateForStatement(stmt: ForStatement) {
-        const startValue = this.evaluateExpression(stmt.start);
+        let startValue = this.evaluateExpression(stmt.start);
         const endValue = this.evaluateExpression(stmt.end);
+        let stepValue = stmt.step ? this.evaluateExpression(stmt.step) : 1;
         const varName = stmt.identifier.name;
 
-        for (let i = startValue; i <= endValue; i++) {
-            this.env.set(varName, i);
-            for (const bodyStmt of stmt.body) {
-                this.evaluateStatement(bodyStmt);
+        // Initialize block scope variable if it doesn't exist
+        if (this.env.get(varName) === EmptyVBA) { // Check against EmptyVBA
+            this.env.set(varName, startValue);
+        } else {
+            this.env.setLocally(varName, startValue);
+        }
+
+        const condition = () => stepValue > 0 ? this.env.get(varName) <= endValue : this.env.get(varName) >= endValue;
+
+        while (condition()) {
+            try {
+                for (const bodyStmt of stmt.body) {
+                    this.evaluateStatement(bodyStmt);
+                }
+            } catch (e: any) {
+                if (e && e.type === 'Exit' && e.target === 'For') {
+                    break;
+                }
+                throw e; // re-throw if it wasn't an Exit For
             }
+            // Increment/decrement loop variable
+            this.env.setLocally(varName, this.env.get(varName) + stepValue);
         }
     }
 
@@ -154,8 +289,15 @@ export class Evaluator {
 
     private evaluateDoWhileStatement(stmt: DoWhileStatement) {
         while (this.evaluateExpression(stmt.condition)) {
-            for (const bodyStmt of stmt.body) {
-                this.evaluateStatement(bodyStmt);
+            try {
+                for (const bodyStmt of stmt.body) {
+                    this.evaluateStatement(bodyStmt);
+                }
+            } catch (e: any) {
+                if (e && e.type === 'Exit' && e.target === 'Do') {
+                    break;
+                }
+                throw e;
             }
         }
     }
@@ -181,29 +323,77 @@ export class Evaluator {
             } else {
                 throw new Error("Execution error: Complex left hand assignments not supported yet");
             }
+        } else if (stmt.left.type === 'MemberExpression') {
+            const member = stmt.left as MemberExpression;
+            // E.g. dict(key) = val -> wait, Dictionary default property is dict.Item(key) = val
+            // But let's handle object property assignment Application.ScreenUpdating = false
+            const obj = this.evaluateExpression(member.object);
+            const propName = member.property.name.toLowerCase();
+            if (obj && typeof obj === 'object') {
+                obj[propName] = val;
+            } else {
+                throw new Error(`Execution error: Cannot assign property '${propName}' of undefined or primitive`);
+            }
+        } else {
+            throw new Error(`Execution error: Invalid assignment target`);
         }
     }
 
     private evaluateVariableDeclaration(stmt: VariableDeclaration) {
-        if (stmt.isArray && stmt.arraySize) {
-            const size = this.evaluateExpression(stmt.arraySize);
-            const arr = new Array(size + 1).fill(0); // VBA arrays typically 0 to N
-            this.env.set(stmt.name.name, arr);
-        } else if (stmt.objectType?.toLowerCase() === 'collection' || stmt.isNew) {
-            // Currently represent Collection as an array with some wrapper behavior
-            const coll: any[] = [];
-            // We attach methods to the object to simulate VBA Collection methods
-            (coll as any).add = (item: any) => coll.push(item);
-            (coll as any).item = (idx: number) => coll[idx - 1]; // VBA collections are 1-indexed
-            (coll as any).count = () => coll.length;
-            this.env.set(stmt.name.name, coll);
-        } else {
-            this.env.set(stmt.name.name, 0);
+        for (const decl of stmt.declarations) {
+            let initialValue: any = EmptyVBA;
+            if (decl.isArray) {
+                if (decl.arraySize) {
+                    const size = this.evaluateExpression(decl.arraySize);
+                    initialValue = new Array(size + 1).fill(EmptyVBA);
+                } else {
+                    initialValue = [];
+                }
+            } else if (decl.isNew && decl.objectType === 'Collection') {
+                initialValue = {
+                    items: [],
+                    add: function (item: any) { this.items.push(item); },
+                    count: function () { return this.items.length; },
+                    item: function (index: number) { return this.items[index - 1]; }
+                };
+            }
+            this.env.set(decl.name.name, initialValue);
         }
     }
 
     private evaluateCallStatement(stmt: CallStatement) {
         this.evaluateExpression(stmt.expression);
+    }
+
+    private evaluateConstDeclaration(stmt: ConstDeclaration) {
+        const value = this.evaluateExpression(stmt.value);
+        this.env.set(stmt.name.name, value);
+    }
+
+    private evaluateSetStatement(stmt: SetStatement) {
+        const value = this.evaluateExpression(stmt.right);
+        if (stmt.left.type === 'Identifier') {
+            this.env.set((stmt.left as Identifier).name, value);
+        } else {
+            throw new Error(`Execution error: Unsupported Set target ${stmt.left.type}`);
+        }
+    }
+
+    private evaluateEraseStatement(stmt: EraseStatement) {
+        this.env.set(stmt.name.name, []);
+    }
+
+    private evaluateReDimStatement(stmt: ReDimStatement) {
+        // Evaluate bounds (just size for 1D for now)
+        if (stmt.bounds.length > 0) {
+            const size = this.evaluateExpression(stmt.bounds[stmt.bounds.length - 1]); // naive: takes last bound as size
+            const arr = new Array(size + 1).fill(EmptyVBA);
+            this.env.set(stmt.name.name, arr);
+        }
+    }
+
+    private evaluateExitStatement(stmt: ExitStatement) {
+        throw { type: 'Exit', target: stmt.exitType };
     }
 
     private evaluateExpression(expr: Expression): any {
@@ -218,6 +408,8 @@ export class Evaluator {
                 return this.evaluateCallExpression(expr as CallExpression);
             case 'MemberExpression':
                 return this.evaluateMemberExpression(expr as MemberExpression);
+            case 'UnaryExpression':
+                return this.evaluateUnaryExpression(expr as UnaryExpression);
             case 'BinaryExpression':
                 return this.evaluateBinaryExpression(expr as BinaryExpression);
             default:
@@ -241,28 +433,38 @@ export class Evaluator {
                 }
 
                 if (proc.isFunction) {
-                    localEnv.set(proc.name.name, 0); // initial return value
+                    // Implicit variable for function return value
+                    localEnv.setLocally(proc.name.name, EmptyVBA);
                 }
 
-                const prevEnv = this.env;
+                const previousEnv = this.env;
                 this.env = localEnv;
 
                 try {
                     for (const s of proc.body) {
                         this.evaluateStatement(s);
                     }
-                } finally {
-                    this.env = prevEnv;
+                } catch (e: any) {
+                    if (e && e.type === 'Exit' && (e.target === 'Sub' || e.target === 'Function')) {
+                        // Exit the procedure cleanly
+                    } else {
+                        throw e;
+                    }
                 }
+
+                this.env = previousEnv; // Restore scope
 
                 if (proc.isFunction) {
                     return localEnv.get(proc.name.name);
                 }
                 return undefined;
             } else {
-                // Might be an array access
+                // Might be an array access or built-in function
                 const variable = this.env.get(name);
-                if (Array.isArray(variable)) {
+                if (typeof variable === 'function') {
+                    const argsVals = expr.args.map(a => this.evaluateExpression(a));
+                    return variable(...argsVals);
+                } else if (Array.isArray(variable)) {
                     if (expr.args.length === 0) throw new Error(`Execution error: Missing index for array ${name}`);
                     const idx = this.evaluateExpression(expr.args[0]);
                     return variable[idx]; // 0-indexed in JS/VBA unless Option Base 1
@@ -273,17 +475,48 @@ export class Evaluator {
             // Example: col.Add("Cherry")
             const member = expr.callee as MemberExpression;
             const obj = this.evaluateExpression(member.object);
-            const methodName = member.property.name.toLowerCase();
+            const methodNameLower = member.property.name.toLowerCase();
+            const methodNameOriginal = member.property.name;
 
-            if (obj && typeof obj[methodName] === 'function') {
-                const argsVals = expr.args.map(a => this.evaluateExpression(a));
-                return obj[methodName](...argsVals);
-            } else {
-                throw new Error(`Execution error: Object does not support property or method '${methodName}'`);
+            if (obj) {
+                // Try case-insensitive lookup first, then fallback to original casing
+                let targetMethod = obj[methodNameLower];
+
+                if (typeof targetMethod !== 'function') {
+                    // Search object keys for case-insensitive match (for JS proxies/objects)
+                    const keys = Object.keys(obj);
+                    // If proxy, Object.keys might not work perfectly, so also check original
+                    if (typeof obj[methodNameOriginal] === 'function') {
+                        targetMethod = obj[methodNameOriginal];
+                    } else {
+                        const match = keys.find(k => k.toLowerCase() === methodNameLower);
+                        if (match) targetMethod = obj[match];
+                    }
+                }
+
+                if (typeof targetMethod === 'function') {
+                    const argsVals = expr.args.map(a => this.evaluateExpression(a));
+                    return targetMethod.apply(obj, argsVals);
+                }
             }
+            throw new Error(`Execution error: Object does not support property or method '${methodNameOriginal}'`);
         }
 
         throw new Error(`Execution error: Unsupported call expression`);
+    }
+
+    private evaluateUnaryExpression(expr: UnaryExpression): any {
+        const argument = this.evaluateExpression(expr.argument);
+        switch (expr.operator.toLowerCase()) {
+            case 'not':
+                return !argument;
+            case '-':
+                return -argument;
+            case '+':
+                return +argument;
+            default:
+                throw new Error(`Execution error: Unknown unary operator ${expr.operator}`);
+        }
     }
 
     private evaluateMemberExpression(expr: MemberExpression): any {
@@ -301,20 +534,25 @@ export class Evaluator {
     }
 
     private evaluateBinaryExpression(expr: BinaryExpression): any {
-        const left = this.evaluateExpression(expr.left);
-        const right = this.evaluateExpression(expr.right);
+        const leftVal = this.evaluateExpression(expr.left);
+        const rightVal = this.evaluateExpression(expr.right);
 
         switch (expr.operator.toLowerCase()) {
-            case '+': return left + right;
-            case '-': return left - right;
-            case '=': return left === right;
-            case '<>': return left !== right;
-            case '<': return left < right;
-            case '>': return left > right;
-            case '<=': return left <= right;
-            case '>=': return left >= right;
-            case 'and': return left && right;
-            case 'or': return left || right;
+            case '+': return leftVal + rightVal;
+            case '-': return leftVal - rightVal;
+            case '*': return leftVal * rightVal;
+            case '/': return leftVal / rightVal;
+            case '\\': return Math.floor(leftVal / rightVal);
+            case 'mod': return leftVal % rightVal;
+            case '^': return Math.pow(leftVal, rightVal);
+            case '=': return leftVal === rightVal;
+            case '<>': return leftVal !== rightVal;
+            case '<': return leftVal < rightVal;
+            case '>': return leftVal > rightVal;
+            case '<=': return leftVal <= rightVal;
+            case '>=': return leftVal >= rightVal;
+            case 'and': return leftVal && rightVal;
+            case 'or': return leftVal || rightVal;
             default:
                 throw new Error(`Execution error: Unknown operator ${expr.operator}`);
         }

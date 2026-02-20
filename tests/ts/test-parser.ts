@@ -1,8 +1,8 @@
 import * as fs from 'fs';
-import { Lexer } from './src/compiler/lexer';
-import { Parser } from './src/compiler/parser';
+import { Lexer } from '../../src/compiler/lexer';
+import { Parser } from '../../src/compiler/parser';
 
-const code = fs.readFileSync('test.vba', 'utf-8');
+const code = fs.readFileSync('tests/vba/test.vba', 'utf-8');
 
 try {
     const lexer = new Lexer(code);

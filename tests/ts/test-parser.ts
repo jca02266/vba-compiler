@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import { Lexer } from '../../src/compiler/lexer';
 import { Parser } from '../../src/compiler/parser';
 
-const code = fs.readFileSync('src/vba/TaskScheduler.vba', 'utf-8');
+const code = fs.readFileSync('sample/src/vba/TaskScheduler.vba', 'utf-8');
 
 try {
     const lexer = new Lexer(code);

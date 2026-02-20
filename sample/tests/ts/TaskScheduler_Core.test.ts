@@ -1,8 +1,8 @@
-import { runVBATest, assert } from './test-runner';
+import { runVBATest, assert } from '../../../tests/ts/test-runner';
 
 async function main() {
     console.log("--- Starting VBA Unit Tests ---");
-    const vbaFile = 'src/vba/TaskScheduler_Core.vba';
+    const vbaFile = 'sample/src/vba/TaskScheduler_Core.vba';
 
     // Test #1: CalcBaseStartIdx
     console.log("\n[Test Suite] CalcBaseStartIdx");

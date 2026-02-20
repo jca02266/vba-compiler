@@ -91,5 +91,81 @@ Sub UpdateLevelFinish(currentLevel As Long, taskFinishIdx As Long, taskFinishAll
     End If
 End Sub
 
+' Refactor #5: Extract Capacity Config Building
+' 設定データ（2D配列）から、担当者名と1日の最大稼働工数（デフォルト1.0）を紐づけたディクショナリを生成する
+' Logic: Parse a 2D array [Name, Capacity] and return a Scripting.Dictionary 
+Function BuildCapacityDict(configData As Variant) As Object
+    Dim capacityLimits As Object
+    Set capacityLimits = CreateObject("Scripting.Dictionary")
+    
+    Dim cfgRow As Long
+    Dim cfgCapacity As Double
+    Dim cfgName As String
+    
+    For cfgRow = 1 To UBound(configData, 1)
+        cfgName = Trim(configData(cfgRow, 1))
+        If cfgName <> "" Then
+            cfgCapacity = 1# ' Default
+            If IsNumeric(configData(cfgRow, 2)) And Not IsEmpty(configData(cfgRow, 2)) Then
+                cfgCapacity = CDbl(configData(cfgRow, 2))
+            End If
+            capacityLimits(cfgName) = cfgCapacity
+        End If
+    Next cfgRow
+    
+    Set BuildCapacityDict = capacityLimits
+End Function
 
+' Refactor #6: Extract Phase 1 (Scan Locked Rows)
+' 全タスクをスキャンし、「L」マーク（ロック）がついている場合は既存スケジュールを personUsage (実績Dict) に事前割り当てする
+Sub ScanLockedRows(numRows As Long, numDays As Long, metaData As Variant, gridData As Variant, ByRef personUsage As Object)
+    Const COL_LOCK_IDX As Long = 13
+    Const COL_ASSIGNEE_IDX As Long = 17
+    Const STR_LOCK_MARK As String = "L"
+
+    Dim taskRow As Long
+    Dim dayIdx As Long
+    Dim assigneeName As String
+    Dim newAllocArray() As Double
+    Dim cellVal As Variant
+    Dim existingAlloc As Double
+
+    For taskRow = 1 To numRows
+        assigneeName = Trim(metaData(taskRow, COL_ASSIGNEE_IDX))
+        
+        If assigneeName <> "" Then
+            ' Initialize empty array for person if not exists
+            If Not personUsage.Exists(assigneeName) Then
+                ReDim newAllocArray(1 To numDays) As Double
+                personUsage.Add assigneeName, newAllocArray
+            End If
+            
+            ' If row is locked, scan its grid and pre-allocate usage
+            If UCase(Trim(metaData(taskRow, COL_LOCK_IDX))) = STR_LOCK_MARK Then
+                newAllocArray = personUsage(assigneeName)
+                For dayIdx = 1 To numDays
+                    cellVal = gridData(taskRow, dayIdx)
+                    existingAlloc = 0
+                    If IsNumeric(cellVal) And Not IsEmpty(cellVal) Then
+                        existingAlloc = CDbl(cellVal)
+                    End If
+                    
+                    If existingAlloc > 0 Then
+                        newAllocArray(dayIdx) = newAllocArray(dayIdx) + existingAlloc
+                    End If
+                Next dayIdx
+                personUsage(assigneeName) = newAllocArray
+            End If
+        End If
+    Next taskRow
+End Sub
+
+' Refactor #7: Extract ClearTaskGridRow
+' 指定されたタスク行のスケジュールグリッド（右側）をクリアする
+Sub ClearTaskGridRow(taskRow As Long, numDays As Long, ByRef gridData As Variant)
+    Dim dayIdx As Long
+    For dayIdx = 1 To numDays
+        gridData(taskRow, dayIdx) = Empty
+    Next dayIdx
+End Sub
 

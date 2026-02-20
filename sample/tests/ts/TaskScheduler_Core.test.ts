@@ -74,6 +74,102 @@ async function main() {
     runVBATest(vbaFile, 'UpdateLevelFinish', [1, 15, 1.0, levelFinish, levelAlloc]);
     assert.strictEqual(levelAlloc[1], 1.0, "Level 1 alloc updated, 1.0 > 0.8");
 
+    console.log("\n[Test Suite] BuildCapacityDict");
+
+    // Simulate 1-based 2D array of config data for arr(row, col):
+    // Evaluator mock reads `current[row][col]`.
+    // row 1: [null, "Alice", 0.5] -> arr[1][1] = "Alice", arr[1][2] = 0.5
+    const mockConfigData = [
+        null, // row 0
+        [null, "Alice", 0.5],   // row 1
+        [null, "Bob", null],    // row 2
+        [null, "   ", 2.0],     // row 3
+        [null, "Dan", 1.25]     // row 4
+    ];
+
+    // BuildCapacityDict returns a VBA Dictionary. We can call .Exists and .Item() via evaluator if we test it properly.
+    // Instead of complex dict inspection, let's wrap it in another evaluation or test the keys specifically, or we can just 
+    // run it and see if the stub dictionary mechanism throws.
+    // However, our `runVBATest` returns the evaluated result. For objects, it returns the JS representation.
+    const resultDict = runVBATest(vbaFile, 'BuildCapacityDict', [mockConfigData]);
+
+    // Check if the Map/Dictionary populated correctly
+    assert.strictEqual(resultDict.__map__.get("Alice"), 0.5, "Alice config matches");
+    assert.strictEqual(resultDict.__map__.get("Bob"), 1.0, "Bob config defaults to 1.0");
+    assert.strictEqual(resultDict.__map__.get("Dan"), 1.25, "Dan config matches");
+    assert.strictEqual(resultDict.exists("   ") || resultDict.exists(""), false, "Empty name skipped");
+    assert.strictEqual(resultDict.__map__.size, 3, "Only Alice, Bob, and Dan were added");
+
+    console.log("\n[Test Suite] ScanLockedRows");
+
+    // Mock dictionaries/objects are initialized by evaluator natively if we let it
+    // but the test runner runs strictly pure function. So we'll run a mini script inside runVBATest
+    // However, runVBATest just calls the target function.
+
+    // Simulate metaData: [null, [null, col1... col13=Lock, col14, col15, col16, col17=Name] ]
+    const mockMetaData = [
+        null,
+        // Row 1: Unlocked, Alice
+        Array(20).fill("").map((_, i) => i === 13 ? "" : (i === 17 ? "Alice" : "")),
+        // Row 2: Locked, Bob
+        Array(20).fill("").map((_, i) => i === 13 ? "L" : (i === 17 ? "Bob" : "")),
+        // Row 3: Locked, Alice
+        Array(20).fill("").map((_, i) => i === 13 ? "L" : (i === 17 ? "Alice" : ""))
+    ];
+
+    // Simulate gridData: 1-based [null, [null, Day1, Day2, Day3], ... ]
+    const mockGridData = [
+        null,
+        [null, 1.0, 0.0, 0.0], // Row 1 (Unlocked) - should be ignored by ScanLockedRows
+        [null, 0.0, 0.5, 0.5], // Row 2 (Bob, Locked)
+        [null, 0.5, 0.0, 0.25] // Row 3 (Alice, Locked)
+    ];
+
+    // The signature: ScanLockedRows(numRows, numDays, metaData, gridData, ByRef personUsage)
+    // Create an empty personUsage dictionary map
+    const personUsage = {
+        __isVbaDict__: true,
+        __map__: new Map<string, any>(),
+        add: function (k: string, v: any) { this.__map__.set(k, v); },
+        exists: function (k: string) { return this.__map__.has(k); }
+    };
+
+    // runVBATest wrapper doesn't extract by-ref cleanly, but the argument `personUsage` is mutated 
+    runVBATest(vbaFile, 'ScanLockedRows', [3, 3, mockMetaData, mockGridData, personUsage]);
+
+    // Bob has 0.5 on Day 2, 0.5 on Day 3
+    const bobUsage = personUsage.__map__.get("Bob");
+    assert.strictEqual(bobUsage[2], 0.5, "Bob day 2 usage pre-allocated");
+    assert.strictEqual(bobUsage[3], 0.5, "Bob day 3 usage pre-allocated");
+
+    // Alice is Row 1 (Unlocked) padding to 0, Row 3 (Locked) adding 0.5 and 0.25
+    const aliceUsage = personUsage.__map__.get("Alice");
+    assert.strictEqual(aliceUsage[1], 0.5, "Alice day 1 usage pre-allocated");
+    assert.strictEqual(aliceUsage[2], 0.0, "Alice day 2 remains 0");
+    assert.strictEqual(aliceUsage[3], 0.25, "Alice day 3 usage pre-allocated");
+
+    console.log("\n[Test Suite] ClearTaskGridRow");
+
+    // Simulate gridData with some mock usage values we want to clear
+    const gridToClear = [
+        null,
+        [null, 0.5, 0.5, 0.5], // Row 1
+        [null, 1.0, 1.0, 1.0], // Row 2
+        [null, 0.25, 0.0, 0.5] // Row 3
+    ];
+
+    // Signature: ClearTaskGridRow(taskRow, numDays, ByRef gridData)
+    // Clear row 2
+    runVBATest(vbaFile, 'ClearTaskGridRow', [2, 3, gridToClear]);
+
+    // Row 2 should be empty (null is the Evaluator's representation of VBA Empty)
+    assert.strictEqual(gridToClear[2][1], null, "Row 2 Day 1 cleared");
+    assert.strictEqual(gridToClear[2][2], null, "Row 2 Day 2 cleared");
+    assert.strictEqual(gridToClear[2][3], null, "Row 2 Day 3 cleared");
+
+    // Row 1 should remain unaffected
+    assert.strictEqual(gridToClear[1][1], 0.5, "Row 1 unaffected");
+
     console.log("\n--- All tests passed! ---");
 }
 

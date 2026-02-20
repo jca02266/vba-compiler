@@ -122,21 +122,7 @@ Sub AutoScheduleTasks()
     
     ' Build Capacity Dict: Key=Name, Value=MaxLimit (Default 1.0)
     Dim capacityLimits As Object
-    Set capacityLimits = CreateObject("Scripting.Dictionary")
-    
-    Dim cfgRow As Long
-    Dim cfgCapacity As Double
-    Dim cfgName As String
-    For cfgRow = 1 To UBound(configData, 1)
-        cfgName = Trim(configData(cfgRow, 1)) ' Column I
-        If cfgName <> "" Then
-            cfgCapacity = 1# ' Default
-            If IsNumeric(configData(cfgRow, 2)) And Not IsEmpty(configData(cfgRow, 2)) Then
-                cfgCapacity = CDbl(configData(cfgRow, 2))
-            End If
-            capacityLimits(cfgName) = cfgCapacity
-        End If
-    Next cfgRow
+    Set capacityLimits = BuildCapacityDict(configData)
     
     ' 4. Initialize Resource Usage Dictionary
     Dim personUsage As Object
@@ -151,32 +137,7 @@ Sub AutoScheduleTasks()
     ' =========================================================
     ' Phase 1: Scan Locked Rows ("L")
     ' =========================================================
-    For taskRow = 1 To numRows
-        assigneeName = Trim(metaData(taskRow, COL_ASSIGNEE_IDX))
-        
-        If assigneeName <> "" Then
-            If Not personUsage.Exists(assigneeName) Then
-                ReDim newAllocArray(1 To numDays) As Double
-                personUsage.Add assigneeName, newAllocArray
-            End If
-            
-            If UCase(Trim(metaData(taskRow, COL_LOCK_IDX))) = STR_LOCK_MARK Then
-                newAllocArray = personUsage(assigneeName)
-                For dayIdx = 1 To numDays
-                    cellVal = gridData(taskRow, dayIdx)
-                    existingAlloc = 0
-                    If IsNumeric(cellVal) And Not IsEmpty(cellVal) Then
-                        existingAlloc = CDbl(cellVal)
-                    End If
-                    
-                    If existingAlloc > 0 Then
-                        newAllocArray(dayIdx) = newAllocArray(dayIdx) + existingAlloc
-                    End If
-                Next dayIdx
-                personUsage(assigneeName) = newAllocArray
-            End If
-        End If
-    Next taskRow
+    Call ScanLockedRows(numRows, numDays, metaData, gridData, personUsage)
     
     ' =========================================================
     ' Phase 2: Schedule & Calculate Dependencies (Locked & Unlocked)
@@ -261,9 +222,7 @@ Sub AutoScheduleTasks()
             If IsNumeric(metaData(taskRow, COL_DURATION_IDX)) Then duration = CDbl(metaData(taskRow, COL_DURATION_IDX))
             
             ' Clear grid for this row
-            For dayIdx = 1 To numDays
-                gridData(taskRow, dayIdx) = Empty
-            Next dayIdx
+            Call ClearTaskGridRow(taskRow, numDays, gridData)
             
             If assigneeName <> "" And duration > 0 Then
                 If Not personUsage.Exists(assigneeName) Then

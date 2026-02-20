@@ -23,4 +23,4 @@ dist-ssr
 *.sln
 
 # Test outputs
-tests/ts/*.cjs
+*.cjs

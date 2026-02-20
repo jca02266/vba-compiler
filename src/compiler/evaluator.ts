@@ -101,26 +101,38 @@ export class Evaluator {
         });
 
         // Add typical VBA built-ins
-        this.env.set('isempty', (val: any) => val === undefined || val === null || val === '' || val === 0);
+        this.env.set('isempty', (val: any) => val === undefined || val === null || val === '');
         this.env.set('isnumeric', (val: any) => !isNaN(parseFloat(val)) && isFinite(val));
         this.env.set('cdbl', (val: any) => parseFloat(val) || 0);
         this.env.set('clng', (val: any) => Math.round(parseFloat(val)) || 0);
         this.env.set('int', (val: any) => Math.floor(parseFloat(val)) || 0);
         this.env.set('ucase', (val: any) => String(val || '').toUpperCase());
         this.env.set('trim', (val: any) => String(val || '').trim());
-        this.env.set('ubound', (arr: any[]) => {
-            if (Array.isArray(arr)) return arr.length - 1; // Assuming 0-indexed in JS
+        this.env.set('ubound', (arr: any[], dimension?: number) => {
+            if (Array.isArray(arr)) {
+                if (dimension === 2 && arr.length > 0 && Array.isArray(arr[0])) {
+                    return arr[0].length - 1;
+                } else if (dimension === 2 && arr.length > 1 && Array.isArray(arr[1])) {
+                    return arr[1].length - 1; // Fallback if arr[0] is null/empty in mocks
+                }
+                return arr.length - 1; // Assuming 0-indexed in JS (or 1-indexed filled with nulls)
+            }
             return 0;
         });
         this.env.set('createobject', (progId: string) => {
             if (progId.toLowerCase() === 'scripting.dictionary') {
                 const dict = new Map<string, any>();
-                return {
+                // We return an object that can act as a dictionary for method calls
+                // but ALSO retains the inner Map for our `CallExpression` hacks
+                const vbaDict: any = {
+                    __isVbaDict__: true,
+                    __map__: dict,
                     add: (k: string, v: any) => dict.set(k, v),
                     exists: (k: string) => dict.has(k),
                     items: () => Array.from(dict.values()),
                     keys: () => Array.from(dict.keys())
                 };
+                return vbaDict;
             }
             throw new Error(`Execution error: Unsupported CreateObject '${progId}'`);
         });
@@ -309,16 +321,28 @@ export class Evaluator {
             const name = (stmt.left as Identifier).name;
             this.env.set(name, val);
         } else if (stmt.left.type === 'CallExpression') {
-            // Array assignment: arr(0) = val
+            // Array/Dictionary assignment: arr(0) = val OR dict("key") = val
             const call = stmt.left as CallExpression;
             if (call.callee.type === 'Identifier') {
                 const name = (call.callee as Identifier).name;
-                const arr = this.env.get(name);
-                if (Array.isArray(arr)) {
-                    const idx = this.evaluateExpression(call.args[0]);
-                    arr[idx] = val;
+                const target = this.env.get(name);
+                const idx = this.evaluateExpression(call.args[0]);
+
+                if (Array.isArray(target)) {
+                    // Support 1D or multi-dimensional array assignment arr(0, 1) = val -> arr[0][1] = val
+                    let current = target;
+                    for (let i = 0; i < call.args.length - 1; i++) {
+                        const d = this.evaluateExpression(call.args[i]);
+                        if (!current[d]) current[d] = []; // Auto-instantiate inner arrays
+                        current = current[d];
+                    }
+                    const lastIdx = this.evaluateExpression(call.args[call.args.length - 1]);
+                    current[lastIdx] = val;
+                } else if (target && target.__isVbaDict__) {
+                    // Treat as Dictionary assignment dict("key") = val
+                    target.__map__.set(idx, val);
                 } else {
-                    throw new Error(`Execution error: ${name} is not an array`);
+                    throw new Error(`Execution error: ${name} is not an array or dictionary`);
                 }
             } else {
                 throw new Error("Execution error: Complex left hand assignments not supported yet");
@@ -371,7 +395,12 @@ export class Evaluator {
     }
 
     private evaluateSetStatement(stmt: SetStatement) {
-        const value = this.evaluateExpression(stmt.right);
+        let value = this.evaluateExpression(stmt.right);
+        // If the right side evaluates to a variable name (string), resolve it
+        if (typeof value === 'string' && stmt.right.type === 'Identifier') {
+            value = this.env.get(value);
+        }
+
         if (stmt.left.type === 'Identifier') {
             this.env.set((stmt.left as Identifier).name, value);
         } else {
@@ -387,7 +416,7 @@ export class Evaluator {
         // Evaluate bounds (just size for 1D for now)
         if (stmt.bounds.length > 0) {
             const size = this.evaluateExpression(stmt.bounds[stmt.bounds.length - 1]); // naive: takes last bound as size
-            const arr = new Array(size + 1).fill(EmptyVBA);
+            const arr = new Array(size + 1).fill(0); // VBA numeric arrays default to 0
             this.env.set(stmt.name.name, arr);
         }
     }
@@ -466,8 +495,20 @@ export class Evaluator {
                     return variable(...argsVals);
                 } else if (Array.isArray(variable)) {
                     if (expr.args.length === 0) throw new Error(`Execution error: Missing index for array ${name}`);
-                    const idx = this.evaluateExpression(expr.args[0]);
-                    return variable[idx]; // 0-indexed in JS/VBA unless Option Base 1
+                    // Support multi-dimensional array lookup arr(0, 1) -> arr[0][1]
+                    let current = variable;
+                    for (let i = 0; i < expr.args.length; i++) {
+                        if (!current) return EmptyVBA; // Out of bounds or jagged array
+                        const idx = this.evaluateExpression(expr.args[i]);
+                        current = current[idx];
+                    }
+                    if (current === undefined) return EmptyVBA;
+                    return current;
+                } else if (variable && variable.__isVbaDict__) {
+                    // Dictionary read: dict("key")
+                    if (expr.args.length === 0) throw new Error(`Execution error: Missing key for dictionary ${name}`);
+                    const key = this.evaluateExpression(expr.args[0]);
+                    return variable.__map__.get(key);
                 }
                 throw new Error(`Execution error: Cannot call unknown procedure or index unknown array '${name}'`);
             }
@@ -539,6 +580,7 @@ export class Evaluator {
 
         switch (expr.operator.toLowerCase()) {
             case '+': return leftVal + rightVal;
+            case '&': return String(leftVal) + String(rightVal);
             case '-': return leftVal - rightVal;
             case '*': return leftVal * rightVal;
             case '/': return leftVal / rightVal;

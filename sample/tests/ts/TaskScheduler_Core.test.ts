@@ -170,6 +170,73 @@ async function main() {
     // Row 1 should remain unaffected
     assert.strictEqual(gridToClear[1][1], 0.5, "Row 1 unaffected");
 
+    console.log("\n[Test Suite] FindLockedTaskFinish");
+    const mockLockedGrid = [
+        null, // 0-based offset
+        [null, 0.5, 1.0, 0.0, 0.0], // Row 1 (finishes on day 2 with 1.0)
+        [null, 0.0, 0.0, 0.0, 0.0]  // Row 2 (empty)
+    ];
+
+    // Signature: FindLockedTaskFinish(taskRow, numDays, gridData, ByRef finishIdx, ByRef finishAlloc)
+    // We use a VBA wrapper Function `TestFindLockedTaskFinish` to return the ByRef primitives as a string.
+
+    // Test Row 1
+    const resRow1 = runVBATest(vbaFile, 'TestFindLockedTaskFinish', [1, 4, mockLockedGrid]);
+    assert.strictEqual(resRow1, "2|1", "Row 1 Finish Idx 2, Alloc 1.0");
+
+    // Test Row 2
+    const resRow2 = runVBATest(vbaFile, 'TestFindLockedTaskFinish', [2, 4, mockLockedGrid]);
+    assert.strictEqual(resRow2, "0|0", "Row 2 empty Finish Idx 0, Alloc 0");
+
+    console.log("\n[Test Suite] ScheduleUnlockedTask");
+
+    // mockMetaData: 1-based [null, [null, col1... col15=Duration, col16, col17=Name] ]
+    // COL_OFFSET_IDX = 9, COL_DURATION_IDX = 15, COL_ASSIGNEE_IDX = 17
+    const mockMetaSchedule = [
+        null,
+        // Row 1: Alice, duration = 1.0, lag = 1 (col 9)
+        Array(20).fill("").map((_, i) => i === 9 ? 1 : (i === 15 ? 1.0 : (i === 17 ? "Alice" : ""))),
+        // Row 2: Bob, duration = 0.5, lag = "" 
+        Array(20).fill("").map((_, i) => i === 9 ? "" : (i === 15 ? 0.5 : (i === 17 ? "Bob" : ""))),
+        // Row 3: Charlie, duration = 0.1 (microtask true), lag = ""
+        Array(20).fill("").map((_, i) => i === 9 ? "" : (i === 15 ? 0.1 : (i === 17 ? "Charlie" : "")))
+    ];
+
+    const mockHolidayData = [
+        null,
+        [null, "", "休", "", "", "休"] // Day 2 and Day 5 are holidays
+    ];
+
+    const mockGridSchedule: any[] = [
+        null,
+        [null, 0, 0, 0, 0, 0], // Row 1
+        [null, 0, 0, 0, 0, 0], // Row 2
+        [null, 0, 0, 0, 0, 0]  // Row 3
+    ];
+
+    const mockPersonUsage = {
+        __isVbaDict__: true,
+        __map__: new Map<string, any>(),
+        add: function (k: string, v: any) { this.__map__.set(k, v); },
+        exists: function (k: string) { return this.__map__.has(k); }
+    };
+
+    // Row 1: Alice, capacity 0.5 (from mocked limits), duration 1.0. BaseStart 1. Lag 1 => start 2.
+    // Day 2 is holiday => skip. 
+    // Day 3: allocate 0.5 limit. remaining 0.5
+    // Day 4: allocate 0.5 limit. remaining 0. FinishIdx = 4, Alloc = 0.5.
+    const resRow1Schedule = runVBATest(vbaFile, 'TestScheduleUnlockedTask', [1, 5, 1, mockMetaSchedule, mockHolidayData, capacityLimits, mockGridSchedule, mockPersonUsage]);
+    assert.strictEqual(resRow1Schedule, "4|0.5", "Row 1 Finish Idx 4, Alloc 0.5");
+    assert.strictEqual(mockGridSchedule[1][2], null, "Alice Day 2 is holiday (cleared to null)");
+    assert.strictEqual(mockGridSchedule[1][3], 0.5, "Alice Day 3 gets 0.5 (capacity limit)");
+    assert.strictEqual(mockGridSchedule[1][4], 0.5, "Alice Day 4 gets 0.5");
+
+    // Row 2: Bob, capacity 0.8. duration 0.5. BaseStart 3. Lag "". => start 3.
+    // Day 3: allocate 0.5. remaining 0. FinishIdx = 3, Alloc = 0.5.
+    const resRow2Schedule = runVBATest(vbaFile, 'TestScheduleUnlockedTask', [2, 5, 3, mockMetaSchedule, mockHolidayData, capacityLimits, mockGridSchedule, mockPersonUsage]);
+    assert.strictEqual(resRow2Schedule, "3|0.5", "Row 2 Finish Idx 3, Alloc 0.5");
+    assert.strictEqual(mockGridSchedule[2][3], 0.5, "Bob Day 3 gets 0.5");
+
     console.log("\n--- All tests passed! ---");
 }
 

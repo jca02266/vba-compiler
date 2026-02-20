@@ -456,9 +456,20 @@ export class Evaluator {
                 const localEnv = new Environment(this.env);
 
                 // Map arguments to parameters
+                const byRefArgs: { paramName: string, identifierName: string }[] = [];
                 for (let i = 0; i < proc.parameters.length; i++) {
                     const argVal = i < expr.args.length ? this.evaluateExpression(expr.args[i]) : 0;
                     localEnv.set(proc.parameters[i].name, argVal);
+
+                    if (i < expr.args.length && expr.args[i].type === 'Identifier') {
+                        // VBA Default is ByRef. If it is NOT explicitly ByVal, it is ByRef
+                        if (!proc.parameters[i].isByVal) {
+                            byRefArgs.push({
+                                paramName: proc.parameters[i].name,
+                                identifierName: (expr.args[i] as Identifier).name
+                            });
+                        }
+                    }
                 }
 
                 if (proc.isFunction) {
@@ -482,6 +493,12 @@ export class Evaluator {
                 }
 
                 this.env = previousEnv; // Restore scope
+
+                // Synchronize ByRef arguments back to caller scope
+                for (const ref of byRefArgs) {
+                    const updatedVal = localEnv.get(ref.paramName);
+                    this.env.setLocally(ref.identifierName, updatedVal);
+                }
 
                 if (proc.isFunction) {
                     return localEnv.get(proc.name.name);

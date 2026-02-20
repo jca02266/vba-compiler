@@ -169,3 +169,129 @@ Sub ClearTaskGridRow(taskRow As Long, numDays As Long, ByRef gridData As Variant
     Next dayIdx
 End Sub
 
+' Refactor #8: Extract FindLockedTaskFinish
+' ロックされたタスク行を右から左へスキャンし、最後に割り当てがある日 (taskFinishIdx) とその量 (taskFinishAlloc) を見つける
+Sub FindLockedTaskFinish(ByVal taskRow As Long, ByVal numDays As Long, ByRef gridData As Variant, ByRef taskFinishIdx As Long, ByRef taskFinishAlloc As Double)
+    Dim dayIdx As Long
+    Dim cellVal As Variant
+    Dim existingAlloc As Double
+    
+    taskFinishIdx = 0
+    taskFinishAlloc = 0
+    
+    For dayIdx = numDays To 1 Step -1
+        cellVal = gridData(taskRow, dayIdx)
+        existingAlloc = 0
+        If IsNumeric(cellVal) And Not IsEmpty(cellVal) Then existingAlloc = CDbl(cellVal)
+        
+        If existingAlloc > 0 Then
+            taskFinishIdx = dayIdx
+            taskFinishAlloc = existingAlloc
+            Exit For
+        End If
+    Next dayIdx
+End Sub
+
+' Refactor #9: Extract ScheduleUnlockedTask
+' 個別のアンロック済みタスクスケジュール（日別の工数割り当てなど）処理を実行する
+Sub ScheduleUnlockedTask(ByVal taskRow As Long, ByVal numDays As Long, ByVal baseStartIdx As Long, ByVal metaData As Variant, ByVal holidayData As Variant, ByVal capacityLimits As Object, ByRef gridData As Variant, ByRef personUsage As Object, ByRef taskFinishIdx As Long, ByRef taskFinishAlloc As Double)
+    Const COL_OFFSET_IDX As Long = 9
+    Const COL_DURATION_IDX As Long = 15
+    Const COL_ASSIGNEE_IDX As Long = 17
+    Const STR_HOLIDAY_MARK As String = "休"
+    
+    Dim duration As Double
+    Dim assigneeName As String
+    Dim remaining As Double
+    Dim dailyAlloc As Double
+    Dim capacity As Double
+    Dim maxDailyLoad As Double
+    Dim isHoliday As Boolean
+    
+    Dim lagDays As Variant
+    Dim taskStartIdx As Long
+    Dim dayIdx As Long
+    
+    Dim newAllocArray() As Double
+    
+    assigneeName = Trim(metaData(taskRow, COL_ASSIGNEE_IDX))
+    duration = 0
+    If IsNumeric(metaData(taskRow, COL_DURATION_IDX)) Then duration = CDbl(metaData(taskRow, COL_DURATION_IDX))
+    
+    ' Clear grid for this row
+    Call ClearTaskGridRow(taskRow, numDays, gridData)
+    
+    If assigneeName <> "" And duration > 0 Then
+        If Not personUsage.Exists(assigneeName) Then
+            ReDim newAllocArray(1 To numDays) As Double
+            personUsage.Add assigneeName, newAllocArray
+        End If
+        
+        ' Get Max Daily Load for Person
+        maxDailyLoad = GetMaxDailyLoad(assigneeName, capacityLimits)
+        
+        remaining = duration
+        newAllocArray = personUsage(assigneeName)
+        
+        taskStartIdx = baseStartIdx
+        
+        ' Add Lag (Start Offset) from Column E (COL_OFFSET_IDX=9)
+        lagDays = metaData(taskRow, COL_OFFSET_IDX)
+        If IsNumeric(lagDays) And Not IsEmpty(lagDays) Then
+            taskStartIdx = taskStartIdx + CLng(lagDays)
+        End If
+        
+        If taskStartIdx < 1 Then taskStartIdx = 1
+        
+        ' Check if Micro-Task (Standard rounding to 0 but original > 0)
+        Dim totalNeeded As Long
+        Dim isMicroTask As Boolean
+        totalNeeded = Int((duration / 0.25) + 0.5)
+        isMicroTask = (totalNeeded = 0 And duration > 0)
+        
+        ' Allocate loop
+        For dayIdx = taskStartIdx To numDays
+            If remaining <= 0 Then Exit For
+            
+            isHoliday = (Trim(holidayData(1, dayIdx)) = STR_HOLIDAY_MARK)
+            
+            If Not isHoliday Then
+                ' Capacity based on Configured Limit
+                capacity = maxDailyLoad - newAllocArray(dayIdx)
+                If capacity < 0 Then capacity = 0
+                
+                dailyAlloc = CalcDailyAllocation(capacity, remaining, isMicroTask)
+                    
+                If dailyAlloc > 0 Then
+                    gridData(taskRow, dayIdx) = dailyAlloc
+                    newAllocArray(dayIdx) = newAllocArray(dayIdx) + dailyAlloc
+                    remaining = remaining - dailyAlloc
+                    
+                    ' Update row finish tracking
+                    taskFinishIdx = dayIdx
+                    taskFinishAlloc = dailyAlloc
+                End If
+            End If
+        Next dayIdx
+        
+        personUsage(assigneeName) = newAllocArray
+    End If
+End Sub
+
+' ---------------------------------------------------------
+' Test Wrappers (Used by TaskScheduler_Core.test.ts)
+' ---------------------------------------------------------
+
+Function TestFindLockedTaskFinish(taskRow As Long, numDays As Long, ByRef gridData As Variant) As String
+    Dim fIdx As Long
+    Dim fAlloc As Double
+    Call FindLockedTaskFinish(taskRow, numDays, gridData, fIdx, fAlloc)
+    TestFindLockedTaskFinish = fIdx & "|" & fAlloc
+End Function
+
+Function TestScheduleUnlockedTask(taskRow As Long, numDays As Long, baseStartIdx As Long, metaData As Variant, holidayData As Variant, capacityLimits As Object, ByRef gridData As Variant, ByRef personUsage As Object) As String
+    Dim fIdx As Long
+    Dim fAlloc As Double
+    Call ScheduleUnlockedTask(taskRow, numDays, baseStartIdx, metaData, holidayData, capacityLimits, gridData, personUsage, fIdx, fAlloc)
+    TestScheduleUnlockedTask = fIdx & "|" & fAlloc
+End Function

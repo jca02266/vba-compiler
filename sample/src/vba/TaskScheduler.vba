@@ -201,84 +201,14 @@ Sub AutoScheduleTasks()
         If isLocked Then
             ' Only update dependency state from existing grid
             ' Scan from right to left to find finish
-            For dayIdx = numDays To 1 Step -1
-                cellVal = gridData(taskRow, dayIdx)
-                existingAlloc = 0
-                If IsNumeric(cellVal) And Not IsEmpty(cellVal) Then existingAlloc = CDbl(cellVal)
-                
-                If existingAlloc > 0 Then
-                    taskFinishIdx = dayIdx
-                    taskFinishAlloc = existingAlloc
-                    Exit For
-                End If
-            Next dayIdx
+            Call FindLockedTaskFinish(taskRow, numDays, gridData, taskFinishIdx, taskFinishAlloc)
             
              ' Update Level Max Finish Logic for Locked Row
              Call UpdateLevelFinish(currentLevel, taskFinishIdx, taskFinishAlloc, levelMaxFinish, levelMaxFinishAlloc)
             
         Else
             ' Unlocked -> Schedule it
-            duration = 0
-            If IsNumeric(metaData(taskRow, COL_DURATION_IDX)) Then duration = CDbl(metaData(taskRow, COL_DURATION_IDX))
-            
-            ' Clear grid for this row
-            Call ClearTaskGridRow(taskRow, numDays, gridData)
-            
-            If assigneeName <> "" And duration > 0 Then
-                If Not personUsage.Exists(assigneeName) Then
-                    ReDim newAllocArray(1 To numDays) As Double
-                    personUsage.Add assigneeName, newAllocArray
-                End If
-                
-                ' Get Max Daily Load for Person
-                maxDailyLoad = GetMaxDailyLoad(assigneeName, capacityLimits)
-                
-                remaining = duration
-                newAllocArray = personUsage(assigneeName)
-                
-                taskStartIdx = baseStartIdx
-                
-                ' Add Lag (Start Offset) from Column E
-                lagDays = metaData(taskRow, COL_OFFSET_IDX)
-                If IsNumeric(lagDays) And Not IsEmpty(lagDays) Then
-                    taskStartIdx = taskStartIdx + CLng(lagDays)
-                End If
-                
-                If taskStartIdx < 1 Then taskStartIdx = 1
-                
-                ' Check if Micro-Task (Standard rounding to 0 but original > 0)
-                Dim totalNeeded As Long
-                Dim isMicroTask As Boolean
-                totalNeeded = Int((duration / 0.25) + 0.5)
-                isMicroTask = (totalNeeded = 0 And duration > 0)
-                
-                ' Allocate loop
-                For dayIdx = taskStartIdx To numDays
-                    If remaining <= 0 Then Exit For
-                    
-                    isHoliday = (Trim(holidayData(1, dayIdx)) = STR_HOLIDAY_MARK)
-                    
-                    If Not isHoliday Then
-                        ' Capacity based on Configured Limit
-                        capacity = maxDailyLoad - newAllocArray(dayIdx)
-                        If capacity < 0 Then capacity = 0
-                        
-                        dailyAlloc = CalcDailyAllocation(capacity, remaining, isMicroTask)
-                            
-                        If dailyAlloc > 0 Then
-                            gridData(taskRow, dayIdx) = dailyAlloc
-                            newAllocArray(dayIdx) = newAllocArray(dayIdx) + dailyAlloc
-                            remaining = remaining - dailyAlloc
-                            
-                            ' Update row finish tracking
-                            taskFinishIdx = dayIdx
-                            taskFinishAlloc = dailyAlloc
-                        End If
-                    End If
-                Next dayIdx
-                
-                personUsage(assigneeName) = newAllocArray
-            End If
+            Call ScheduleUnlockedTask(taskRow, numDays, baseStartIdx, metaData, holidayData, capacityLimits, gridData, personUsage, taskFinishIdx, taskFinishAlloc)
             
             ' Update Level Max Finish Logic for Unlocked Row
             Call UpdateLevelFinish(currentLevel, taskFinishIdx, taskFinishAlloc, levelMaxFinish, levelMaxFinishAlloc)

@@ -26,6 +26,7 @@ export enum TokenType {
     KeywordExplicit,
     KeywordConst,
     KeywordSet,
+    KeywordCall,
     KeywordOn,
     KeywordError,
     KeywordGoTo,
@@ -41,6 +42,7 @@ export enum TokenType {
     OperatorMultiply,
     OperatorDivide,
     OperatorIntDivide,
+    OperatorAmpersand,
     KeywordMod,
     OperatorPower,
     OperatorEquals,
@@ -182,6 +184,11 @@ export class Lexer {
                 return { type: TokenType.OperatorMinus, value: '-', line: this.line };
             }
 
+            if (char === '&') {
+                this.advance();
+                return { type: TokenType.OperatorAmpersand, value: '&', line: this.line };
+            }
+
             if (char === ',') {
                 this.advance();
                 return { type: TokenType.OperatorComma, value: ',', line: this.line };
@@ -266,6 +273,7 @@ export class Lexer {
                 if (lowerId === 'explicit') return { type: TokenType.KeywordExplicit, value: idStr, line: this.line };
                 if (lowerId === 'const') return { type: TokenType.KeywordConst, value: idStr, line: this.line };
                 if (lowerId === 'set') return { type: TokenType.KeywordSet, value: idStr, line: this.line };
+                if (lowerId === 'call') return { type: TokenType.KeywordCall, value: idStr, line: this.line };
                 if (lowerId === 'on') return { type: TokenType.KeywordOn, value: idStr, line: this.line };
                 if (lowerId === 'error') return { type: TokenType.KeywordError, value: idStr, line: this.line };
                 if (lowerId === 'goto') return { type: TokenType.KeywordGoTo, value: idStr, line: this.line };

@@ -37,6 +37,7 @@ export interface DoWhileStatement extends Statement {
 export interface Parameter extends ASTNode {
     type: 'Parameter';
     name: string;
+    isByVal: boolean;
 }
 
 export interface ProcedureDeclaration extends Statement {
@@ -233,6 +234,15 @@ export class Parser {
                 // Ignore for now
             }
             return null;
+        } else if (token.type === TokenType.KeywordCall) {
+            this.advance(); // consume 'Call'
+            const expr = this.parsePrimary();
+            if (expr.type === 'CallExpression') {
+                return { type: 'CallStatement', expression: expr } as CallStatement;
+            } else if (expr.type === 'Identifier') {
+                return { type: 'CallStatement', expression: { type: 'CallExpression', callee: expr, args: [] } } as CallStatement;
+            }
+            throw new Error(`Parse error: Expected procedure call after 'Call'`);
         } else if (token.type === TokenType.Identifier) {
             // Check if it's a label "Identifier:"
             if (this.pos + 1 < this.tokens.length && this.tokens[this.pos + 1].type === TokenType.OperatorColon) {
@@ -302,8 +312,10 @@ export class Parser {
 
         if (this.match(TokenType.OperatorLParen)) {
             if (this.peek().type !== TokenType.OperatorRParen) {
+                let isByVal = false;
                 let paramNameToken = this.peek();
                 if (paramNameToken.type === TokenType.KeywordByVal || paramNameToken.type === TokenType.KeywordByRef) {
+                    isByVal = (paramNameToken.type === TokenType.KeywordByVal);
                     this.advance(); // consume ByVal/ByRef
                     paramNameToken = this.peek();
                 }
@@ -315,12 +327,14 @@ export class Parser {
                     this.advance(); // consume Type name
                 }
 
-                parameters.push({ type: 'Parameter', name: paramName.value });
+                parameters.push({ type: 'Parameter', name: paramName.value, isByVal });
 
                 while (this.match(TokenType.OperatorComma)) {
+                    isByVal = false;
                     // Optional ByVal/ByRef
                     let nextParamToken = this.peek();
                     if (nextParamToken.type === TokenType.KeywordByVal || nextParamToken.type === TokenType.KeywordByRef) {
+                        isByVal = (nextParamToken.type === TokenType.KeywordByVal);
                         this.advance(); // consume ByVal/ByRef
                         nextParamToken = this.peek();
                     }
@@ -329,7 +343,7 @@ export class Parser {
                     if (this.match(TokenType.KeywordAs)) {
                         this.advance(); // consume Type name
                     }
-                    parameters.push({ type: 'Parameter', name: paramName.value });
+                    parameters.push({ type: 'Parameter', name: paramName.value, isByVal });
                 }
             }
             if (!this.match(TokenType.OperatorRParen)) {
@@ -707,13 +721,23 @@ export class Parser {
     }
 
     private parseRelational(): Expression {
-        let left = this.parseAdditive();
+        let left = this.parseConcatenation();
         while (
             this.peek().type === TokenType.OperatorLessThan ||
             this.peek().type === TokenType.OperatorGreaterThan ||
             this.peek().type === TokenType.OperatorLessThanOrEqual ||
             this.peek().type === TokenType.OperatorGreaterThanOrEqual
         ) {
+            const operator = this.advance().value;
+            const right = this.parseConcatenation();
+            left = { type: 'BinaryExpression', operator, left, right } as BinaryExpression;
+        }
+        return left;
+    }
+
+    private parseConcatenation(): Expression {
+        let left = this.parseAdditive();
+        while (this.peek().type === TokenType.OperatorAmpersand) {
             const operator = this.advance().value;
             const right = this.parseAdditive();
             left = { type: 'BinaryExpression', operator, left, right } as BinaryExpression;

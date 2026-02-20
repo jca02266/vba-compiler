@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Play, Eraser, TerminalSquare } from 'lucide-react'
 import { Lexer } from './compiler/lexer'
 import { Parser } from './compiler/parser'
@@ -10,7 +10,9 @@ function App() {
 End Function
 
 Sub MainLoop()
+  ' This loop prints 11, 12, 13
   for i = 1 to 3
+    Rem A VBA comment
     debug.print AddNumbers(i, 10)
   next i
 End Sub
@@ -18,6 +20,16 @@ End Sub
 MainLoop`
   const [code, setCode] = useState(defaultSnippet)
   const [output, setOutput] = useState<string[]>([])
+  const lineNumbersRef = useRef<HTMLDivElement>(null)
+
+  const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
+    if (lineNumbersRef.current) {
+      lineNumbersRef.current.scrollTop = e.currentTarget.scrollTop;
+    }
+  }
+
+  const lineCount = code.split('\n').length;
+  const lines = Array.from({ length: Math.max(1, lineCount) }, (_, i) => i + 1);
 
   const handleRun = () => {
     setOutput(['> Compiling and running...'])
@@ -75,18 +87,32 @@ MainLoop`
       {/* Main Content */}
       <main className="flex flex-1 overflow-hidden">
         {/* Editor Pane */}
-        <section className="flex-1 flex flex-col border-r border-neutral-800 relative">
-          <div className="px-4 py-2 bg-neutral-900 border-b border-neutral-800 text-xs font-mono text-neutral-400 flex items-center gap-2">
+        <section className="flex-1 flex flex-col border-r border-neutral-800 relative bg-neutral-950">
+          <div className="px-4 py-2 bg-neutral-900 border-b border-neutral-800 text-xs font-mono text-neutral-400 flex items-center gap-2 z-10">
             <span className="w-2 h-2 rounded-full bg-green-500"></span>
             main.vba
           </div>
-          <textarea
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            spellCheck={false}
-            className="flex-1 w-full bg-neutral-950 text-neutral-200 font-mono text-sm sm:text-base p-4 focus:outline-none resize-none leading-relaxed"
-            placeholder="Type your VBA code here..."
-          />
+          <div className="flex-1 relative flex overflow-hidden">
+            {/* Line numbers column */}
+            <div
+              className="w-12 bg-neutral-900 text-neutral-500 text-right pr-3 py-4 font-mono text-sm sm:text-base select-none overflow-hidden leading-relaxed"
+              ref={lineNumbersRef}
+            >
+              {lines.map((num) => (
+                <div key={num}>{num}</div>
+              ))}
+            </div>
+            {/* Textarea */}
+            <textarea
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              onScroll={handleScroll}
+              spellCheck={false}
+              wrap="off"
+              className="flex-1 bg-transparent text-neutral-200 font-mono text-sm sm:text-base p-4 py-4 pl-4 focus:outline-none resize-none leading-relaxed whitespace-pre overflow-auto"
+              placeholder="Type your VBA code here..."
+            />
+          </div>
         </section>
 
         {/* Console Pane */}

@@ -98,6 +98,14 @@ export class Lexer {
 
         const char = this.peek();
 
+        // Handle single quote comment
+        if (char === "'") {
+            while (this.peek() !== '\n' && this.peek() !== '\0') {
+                this.advance();
+            }
+            return this.getNextToken();
+        }
+
         if (char === '\n') {
             this.advance();
             return { type: TokenType.Newline, value: '\n', line: this.line - 1 };
@@ -187,6 +195,13 @@ export class Lexer {
             }
 
             const lowerId = idStr.toLowerCase();
+            if (lowerId === 'rem') {
+                while (this.peek() !== '\n' && this.peek() !== '\0') {
+                    this.advance();
+                }
+                return this.getNextToken();
+            }
+
             if (lowerId === 'for') return { type: TokenType.KeywordFor, value: idStr, line: this.line };
             if (lowerId === 'to') return { type: TokenType.KeywordTo, value: idStr, line: this.line };
             if (lowerId === 'next') return { type: TokenType.KeywordNext, value: idStr, line: this.line };

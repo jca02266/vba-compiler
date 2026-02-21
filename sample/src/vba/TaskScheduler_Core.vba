@@ -17,7 +17,6 @@ Type TaskConfig
     COL_DURATION As Long
     COL_ASSIGNEE As Long
     STR_LOCK_MARK As String
-    MAX_LEVEL As Long
 End Type
 
 ' 担当者の位置と属性
@@ -46,7 +45,6 @@ Function InitTaskConfig() As TaskConfig
     cfg.COL_DURATION = 15
     cfg.COL_ASSIGNEE = 17
     cfg.STR_LOCK_MARK = "L"
-    cfg.MAX_LEVEL = 100
     InitTaskConfig = cfg
 End Function
 
@@ -114,6 +112,18 @@ Function GetTaskLevel(metaData As Variant, taskRow As Long, taskCfg As TaskConfi
     If IsNumeric(metaData(taskRow, taskCfg.COL_LEVEL)) And Not IsEmpty(metaData(taskRow, taskCfg.COL_LEVEL)) Then
         GetTaskLevel = CLng(metaData(taskRow, taskCfg.COL_LEVEL))
     End If
+End Function
+
+Function GetMaxLevel(metaData As Variant, numRows As Long, taskCfg As TaskConfig) As Long
+    Dim maxLvl As Long
+    Dim lvl As Long
+    Dim taskRow As Long
+    maxLvl = 0
+    For taskRow = 1 To numRows
+        lvl = GetTaskLevel(metaData, taskRow, taskCfg)
+        If lvl > maxLvl Then maxLvl = lvl
+    Next taskRow
+    GetMaxLevel = maxLvl
 End Function
 
 ' Refactor #1: Extract Base Start Index Calculation

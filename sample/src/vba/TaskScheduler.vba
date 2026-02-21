@@ -126,11 +126,13 @@ Sub AutoScheduleTasks()
     ' Phase 2: Schedule & Calculate Dependencies (Locked & Unlocked)
     ' =========================================================
     ' Level Tracking
+    Dim maxLevel As Long
+    maxLevel = GetMaxLevel(metaData, numRows, taskCfg)
     Dim currentLevel As Long
     Dim levelMaxFinish() As Long
     Dim levelMaxFinishAlloc() As Double
-    ReDim levelMaxFinish(0 To taskCfg.MAX_LEVEL)
-    ReDim levelMaxFinishAlloc(0 To taskCfg.MAX_LEVEL)
+    ReDim levelMaxFinish(0 To maxLevel)
+    ReDim levelMaxFinishAlloc(0 To maxLevel)
     Dim parentFinishIdx As Long
     Dim parentFinishAlloc As Double
     Dim baseStartIdx As Long

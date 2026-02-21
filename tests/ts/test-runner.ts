@@ -15,7 +15,7 @@ export function runVBATest(filePath: string, procedureName: string, args: any[])
     const ast = parser.parse();
 
     // Evaluate
-    const evaluator = new Evaluator();
+    const evaluator = new Evaluator(console.log);
     evaluator.evaluate(ast);
 
     // Call the specific procedure

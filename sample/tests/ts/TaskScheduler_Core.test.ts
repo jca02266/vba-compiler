@@ -151,7 +151,7 @@ async function main() {
     console.log("\n[Test Suite] ClearTaskGridRow");
 
     // Simulate gridData with some mock usage values we want to clear
-    const gridToClear = [
+    const gridToClear: any[] = [
         null,
         [null, 0.5, 0.5, 0.5], // Row 1
         [null, 1.0, 1.0, 1.0], // Row 2

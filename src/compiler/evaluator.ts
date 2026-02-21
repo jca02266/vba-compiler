@@ -21,7 +21,6 @@ import {
     EraseStatement,
     ReDimStatement,
     ExitStatement,
-    LabelStatement
 } from './parser';
 
 export const EmptyVBA = null;

@@ -4,6 +4,10 @@ async function main() {
     console.log("--- Starting VBA Unit Tests ---");
     const vbaFile = 'sample/src/vba/TaskScheduler_Core.vba';
 
+    // Initialize Config types (shared across tests that need them)
+    const taskCfg = runVBATest(vbaFile, 'InitTaskConfig', []);
+    const calCfg = runVBATest(vbaFile, 'InitCalendarConfig', []);
+
     // Test #1: CalcBaseStartIdx
     console.log("\n[Test Suite] CalcBaseStartIdx");
 
@@ -135,7 +139,7 @@ async function main() {
     };
 
     // runVBATest wrapper doesn't extract by-ref cleanly, but the argument `personUsage` is mutated 
-    runVBATest(vbaFile, 'ScanLockedRows', [3, 3, mockMetaData, mockGridData, personUsage]);
+    runVBATest(vbaFile, 'ScanLockedRows', [taskCfg, 3, 3, mockMetaData, mockGridData, personUsage]);
 
     // Bob has 0.5 on Day 2, 0.5 on Day 3
     const bobUsage = personUsage.__map__.get("Bob");
@@ -225,7 +229,7 @@ async function main() {
     // Day 2 is holiday => skip. 
     // Day 3: allocate 0.5 limit. remaining 0.5
     // Day 4: allocate 0.5 limit. remaining 0. FinishIdx = 4, Alloc = 0.5.
-    const resRow1Schedule = runVBATest(vbaFile, 'TestScheduleUnlockedTask', [1, 5, 1, mockMetaSchedule, mockHolidayData, capacityLimits, mockGridSchedule, mockPersonUsage]);
+    const resRow1Schedule = runVBATest(vbaFile, 'TestScheduleUnlockedTask', [taskCfg, calCfg, 1, 5, 1, mockMetaSchedule, mockHolidayData, capacityLimits, mockGridSchedule, mockPersonUsage]);
     assert.strictEqual(resRow1Schedule, "4|0.5", "Row 1 Finish Idx 4, Alloc 0.5");
     assert.strictEqual(mockGridSchedule[1][2], null, "Alice Day 2 is holiday (cleared to null)");
     assert.strictEqual(mockGridSchedule[1][3], 0.5, "Alice Day 3 gets 0.5 (capacity limit)");
@@ -233,7 +237,7 @@ async function main() {
 
     // Row 2: Bob, capacity 0.8. duration 0.5. BaseStart 3. Lag "". => start 3.
     // Day 3: allocate 0.5. remaining 0. FinishIdx = 3, Alloc = 0.5.
-    const resRow2Schedule = runVBATest(vbaFile, 'TestScheduleUnlockedTask', [2, 5, 3, mockMetaSchedule, mockHolidayData, capacityLimits, mockGridSchedule, mockPersonUsage]);
+    const resRow2Schedule = runVBATest(vbaFile, 'TestScheduleUnlockedTask', [taskCfg, calCfg, 2, 5, 3, mockMetaSchedule, mockHolidayData, capacityLimits, mockGridSchedule, mockPersonUsage]);
     assert.strictEqual(resRow2Schedule, "3|0.5", "Row 2 Finish Idx 3, Alloc 0.5");
     assert.strictEqual(mockGridSchedule[2][3], 0.5, "Bob Day 3 gets 0.5");
 

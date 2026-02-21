@@ -15,7 +15,7 @@ Sub AutoScheduleTasks()
     '      基本開始日に Offset の値 (Lag日数) を加算します。
     '      例: 親完了翌日(基本) + 2日(Lag) = 3日後開始
     '
-    ' 3. 担当者キャパシティ設定 (Configurable via Constants)
+    ' 3. 担当者キャパシティ設定 (AssigneeConfig)
     '    - 設定範囲: I8:J12 (デフォルト)
     '      - CONFIG_ROW_START / END で行範囲を指定。
     '      - CONFIG_COL_NAME: 担当者名列。
@@ -27,47 +27,32 @@ Sub AutoScheduleTasks()
     '    - 空き容量が 0.1 以上ある日に限り、最低 0.1 の工数を割り当てます (容量不足時はスキップ)。
     '    - 通常タスク (例: 1.01) は 0.25 単位で丸められ、端数は切り捨てられます (例: 1.0)。
     '
-    ' 5. ロック (COL_LOCK_IDX: "L" Mark)
+    ' 5. ロック (COL_LOCK: "L" Mark)
     '    - "L" マークが付いた行は自動スケジュールの対象外となり、現状のセル値が維持されます。
     '    - ただし、リソース使用量には加算されるため、後続タスクの空き容量計算に影響を与えます。
     '
-    ' 6. 休日設定 (ROW_HOLIDAY_SHEET: 5行目)
+    ' 6. 休日設定 (ROW_HOLIDAY: 5行目)
     '    - "休" (STR_HOLIDAY_MARK) が設定されている日は、工数の割り当てを行いません (スキップ)。
     '    - 前提: 土日・祝日にはあらかじめ "休" が入力されているものとします。
     '
-    ' 7. その他設定 (Constants)
-    '    - ROW_START_SHEET: データ開始行 (19行目～)
-    '    - COL_CALENDAR_START_IDX: カレンダー開始列 (P列=16列目)
+    ' 7. その他設定 (CalendarConfig / TaskConfig / AssigneeConfig)
+    '    - ROW_START: データ開始行 (19行目～)
+    '    - COL_CALENDAR_START: カレンダー開始列
     '    - 各種カラムインデックス:
-    '      - COL_DURATION_IDX: 工数 (Duration)
-    '      - COL_ASSIGNEE_IDX: 担当者 (Assignee)
+    '      - COL_DURATION: 工数 (Duration)
+    '      - COL_ASSIGNEE: 担当者 (Assignee)
     ' =========================================================================================
 
     Dim ws As Worksheet
     Set ws = ActiveSheet
     
-    ' Constants
-    Const COL_CALENDAR_START_IDX As Long = 24
-
-    Const ROW_HEADER_SHEET As Long = 3
-    Const ROW_HOLIDAY_SHEET As Long = 5
-    
-    ' Column Mappings (1-based relative to A=1)
-    Const COL_LEVEL_IDX As Long = 8 ' Level
-    Const COL_OFFSET_IDX As Long = 9 ' Start Offset
-    Const COL_LOCK_IDX As Long = 13 ' Lock
-    Const COL_DURATION_IDX As Long = 15 ' Duration
-    Const COL_ASSIGNEE_IDX As Long = 17 ' Assignee
-    
-    Const STR_HOLIDAY_MARK As String = "休"
-    Const STR_LOCK_MARK As String = "L"
-    
-    ' Config Areas
-    Const CONFIG_ROW_START As Long = 8
-    Const CONFIG_ROW_END As Long = 14
-    Const CONFIG_COL_NAME As Long = 17 ' I
-    Const CONFIG_COL_LIMIT As Long = 18 ' J
-    Const ROW_START_SHEET As Long = 19
+    ' Initialize Configurations
+    Dim calCfg As CalendarConfig
+    calCfg = InitCalendarConfig()
+    Dim taskCfg As TaskConfig
+    taskCfg = InitTaskConfig()
+    Dim assigneeCfg As AssigneeConfig
+    assigneeCfg = InitAssigneeConfig()
     
     ' Performance Settings
     Dim screenUpdateState As Boolean
@@ -86,37 +71,37 @@ Sub AutoScheduleTasks()
     
     ' 1. Determine Range Bounds
     Dim lastRow As Long
-    lastRow = ws.Cells(ws.Rows.Count, COL_DURATION_IDX).End(xlUp).Row
-    If lastRow < ROW_START_SHEET Then GoTo Cleanup
+    lastRow = ws.Cells(ws.Rows.Count, taskCfg.COL_DURATION).End(xlUp).Row
+    If lastRow < taskCfg.ROW_START Then GoTo Cleanup
     
     Dim lastCol As Long
-    lastCol = ws.Cells(ROW_HEADER_SHEET, ws.Columns.Count).End(xlToLeft).Column
-    If lastCol < COL_CALENDAR_START_IDX Then GoTo Cleanup
+    lastCol = ws.Cells(calCfg.ROW_HEADER, ws.Columns.Count).End(xlToLeft).Column
+    If lastCol < calCfg.COL_CALENDAR_START Then GoTo Cleanup
     
     Dim numRows As Long
-    numRows = lastRow - ROW_START_SHEET + 1
+    numRows = lastRow - taskCfg.ROW_START + 1
     Dim numDays As Long
-    numDays = lastCol - COL_CALENDAR_START_IDX + 1
+    numDays = lastCol - calCfg.COL_CALENDAR_START + 1
     
     ' 2. Read Data into Arrays (Double Buffering)
     Dim rangeMeta As Range
-    Set rangeMeta = ws.Range(ws.Cells(ROW_START_SHEET, 1), ws.Cells(lastRow, CONFIG_COL_NAME))
+    Set rangeMeta = ws.Range(ws.Cells(taskCfg.ROW_START, 1), ws.Cells(lastRow, assigneeCfg.CONFIG_COL_NAME))
     Dim metaData As Variant
     metaData = rangeMeta.Value
     
     Dim rangeGrid As Range
-    Set rangeGrid = ws.Range(ws.Cells(ROW_START_SHEET, COL_CALENDAR_START_IDX), ws.Cells(lastRow, lastCol))
+    Set rangeGrid = ws.Range(ws.Cells(taskCfg.ROW_START, calCfg.COL_CALENDAR_START), ws.Cells(lastRow, lastCol))
     Dim gridData As Variant
     gridData = rangeGrid.Value
     
     Dim rangeHoliday As Range
-    Set rangeHoliday = ws.Range(ws.Cells(ROW_HOLIDAY_SHEET, COL_CALENDAR_START_IDX), ws.Cells(ROW_HOLIDAY_SHEET, lastCol))
+    Set rangeHoliday = ws.Range(ws.Cells(calCfg.ROW_HOLIDAY, calCfg.COL_CALENDAR_START), ws.Cells(calCfg.ROW_HOLIDAY, lastCol))
     Dim holidayData As Variant
     holidayData = rangeHoliday.Value 
     
-    ' 3. Read Capacity Config (I8:J12)
+    ' 3. Read Capacity Config
     Dim rangeConfig As Range
-    Set rangeConfig = ws.Range(ws.Cells(CONFIG_ROW_START, CONFIG_COL_NAME), ws.Cells(CONFIG_ROW_END, CONFIG_COL_LIMIT))
+    Set rangeConfig = ws.Range(ws.Cells(assigneeCfg.CONFIG_ROW_START, assigneeCfg.CONFIG_COL_NAME), ws.Cells(assigneeCfg.CONFIG_ROW_END, assigneeCfg.CONFIG_COL_LIMIT))
     Dim configData As Variant
     configData = rangeConfig.Value
     
@@ -137,7 +122,7 @@ Sub AutoScheduleTasks()
     ' =========================================================
     ' Phase 1: Scan Locked Rows ("L")
     ' =========================================================
-    Call ScanLockedRows(numRows, numDays, metaData, gridData, personUsage)
+    Call ScanLockedRows(taskCfg, numRows, numDays, metaData, gridData, personUsage)
     
     ' =========================================================
     ' Phase 2: Schedule & Calculate Dependencies (Locked & Unlocked)
@@ -166,15 +151,15 @@ Sub AutoScheduleTasks()
     Dim isLocked As Boolean
     
     For taskRow = 1 To numRows
-        isLocked = (UCase(Trim(metaData(taskRow, COL_LOCK_IDX))) = STR_LOCK_MARK)
-        assigneeName = Trim(metaData(taskRow, COL_ASSIGNEE_IDX))
+        isLocked = (UCase(Trim(metaData(taskRow, taskCfg.COL_LOCK))) = taskCfg.STR_LOCK_MARK)
+        assigneeName = Trim(metaData(taskRow, taskCfg.COL_ASSIGNEE))
         
         ' ===================================
         ' 【階層ロジック】: D列に基づく依存関係の計算 (Level 1, 2, 3...)
         ' ===================================
         currentLevel = 0
-        If IsNumeric(metaData(taskRow, COL_LEVEL_IDX)) And Not IsEmpty(metaData(taskRow, COL_LEVEL_IDX)) Then
-            currentLevel = CLng(metaData(taskRow, COL_LEVEL_IDX))
+        If IsNumeric(metaData(taskRow, taskCfg.COL_LEVEL)) And Not IsEmpty(metaData(taskRow, taskCfg.COL_LEVEL)) Then
+            currentLevel = CLng(metaData(taskRow, taskCfg.COL_LEVEL))
         End If
         
         ' Level 1 -> 新しいタスクブロックの開始 (完了日リセット)
@@ -208,7 +193,7 @@ Sub AutoScheduleTasks()
             
         Else
             ' Unlocked -> Schedule it
-            Call ScheduleUnlockedTask(taskRow, numDays, baseStartIdx, metaData, holidayData, capacityLimits, gridData, personUsage, taskFinishIdx, taskFinishAlloc)
+            Call ScheduleUnlockedTask(taskCfg, calCfg, taskRow, numDays, baseStartIdx, metaData, holidayData, capacityLimits, gridData, personUsage, taskFinishIdx, taskFinishAlloc)
             
             ' Update Level Max Finish Logic for Unlocked Row
             Call UpdateLevelFinish(currentLevel, taskFinishIdx, taskFinishAlloc, levelMaxFinish, levelMaxFinishAlloc)

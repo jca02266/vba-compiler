@@ -1,5 +1,62 @@
 Option Explicit
 
+' カレンダーの位置と属性
+Type CalendarConfig
+    ROW_HEADER As Long
+    ROW_HOLIDAY As Long
+    COL_CALENDAR_START As Long
+    STR_HOLIDAY_MARK As String
+End Type
+
+' タスクの位置と属性
+Type TaskConfig
+    ROW_START As Long
+    COL_LEVEL As Long
+    COL_OFFSET As Long
+    COL_LOCK As Long
+    COL_DURATION As Long
+    COL_ASSIGNEE As Long
+    STR_LOCK_MARK As String
+End Type
+
+' 担当者の位置と属性
+Type AssigneeConfig
+    CONFIG_COL_NAME As Long
+    CONFIG_COL_LIMIT As Long
+    CONFIG_ROW_START As Long
+    CONFIG_ROW_END As Long
+End Type
+
+Function InitCalendarConfig() As CalendarConfig
+    Dim cfg As CalendarConfig
+    cfg.ROW_HEADER = 3
+    cfg.ROW_HOLIDAY = 5
+    cfg.COL_CALENDAR_START = 24
+    cfg.STR_HOLIDAY_MARK = "休"
+    InitCalendarConfig = cfg
+End Function
+
+Function InitTaskConfig() As TaskConfig
+    Dim cfg As TaskConfig
+    cfg.ROW_START = 19
+    cfg.COL_LEVEL = 8
+    cfg.COL_OFFSET = 9
+    cfg.COL_LOCK = 13
+    cfg.COL_DURATION = 15
+    cfg.COL_ASSIGNEE = 17
+    cfg.STR_LOCK_MARK = "L"
+    InitTaskConfig = cfg
+End Function
+
+Function InitAssigneeConfig() As AssigneeConfig
+    Dim cfg As AssigneeConfig
+    cfg.CONFIG_COL_NAME = 17
+    cfg.CONFIG_COL_LIMIT = 18
+    cfg.CONFIG_ROW_START = 8
+    cfg.CONFIG_ROW_END = 14
+    InitAssigneeConfig = cfg
+End Function
+
 ' Refactor #1: Extract Base Start Index Calculation
 ' 依存タスクの開始日を計算する (Calculate the start date for dependent tasks)
 ' Logic: If parentFinishAlloc < 0.5, start on parentFinishIdx. Else, parentFinishIdx + 1.
@@ -118,11 +175,7 @@ End Function
 
 ' Refactor #6: Extract Phase 1 (Scan Locked Rows)
 ' 全タスクをスキャンし、「L」マーク（ロック）がついている場合は既存スケジュールを personUsage (実績Dict) に事前割り当てする
-Sub ScanLockedRows(numRows As Long, numDays As Long, metaData As Variant, gridData As Variant, ByRef personUsage As Object)
-    Const COL_LOCK_IDX As Long = 13
-    Const COL_ASSIGNEE_IDX As Long = 17
-    Const STR_LOCK_MARK As String = "L"
-
+Sub ScanLockedRows(taskCfg As TaskConfig, numRows As Long, numDays As Long, metaData As Variant, gridData As Variant, ByRef personUsage As Object)
     Dim taskRow As Long
     Dim dayIdx As Long
     Dim assigneeName As String
@@ -131,7 +184,7 @@ Sub ScanLockedRows(numRows As Long, numDays As Long, metaData As Variant, gridDa
     Dim existingAlloc As Double
 
     For taskRow = 1 To numRows
-        assigneeName = Trim(metaData(taskRow, COL_ASSIGNEE_IDX))
+        assigneeName = Trim(metaData(taskRow, taskCfg.COL_ASSIGNEE))
         
         If assigneeName <> "" Then
             ' Initialize empty array for person if not exists
@@ -141,7 +194,7 @@ Sub ScanLockedRows(numRows As Long, numDays As Long, metaData As Variant, gridDa
             End If
             
             ' If row is locked, scan its grid and pre-allocate usage
-            If UCase(Trim(metaData(taskRow, COL_LOCK_IDX))) = STR_LOCK_MARK Then
+            If UCase(Trim(metaData(taskRow, taskCfg.COL_LOCK))) = taskCfg.STR_LOCK_MARK Then
                 newAllocArray = personUsage(assigneeName)
                 For dayIdx = 1 To numDays
                     cellVal = gridData(taskRow, dayIdx)
@@ -194,12 +247,7 @@ End Sub
 
 ' Refactor #9: Extract ScheduleUnlockedTask
 ' 個別のアンロック済みタスクスケジュール（日別の工数割り当てなど）処理を実行する
-Sub ScheduleUnlockedTask(ByVal taskRow As Long, ByVal numDays As Long, ByVal baseStartIdx As Long, ByVal metaData As Variant, ByVal holidayData As Variant, ByVal capacityLimits As Object, ByRef gridData As Variant, ByRef personUsage As Object, ByRef taskFinishIdx As Long, ByRef taskFinishAlloc As Double)
-    Const COL_OFFSET_IDX As Long = 9
-    Const COL_DURATION_IDX As Long = 15
-    Const COL_ASSIGNEE_IDX As Long = 17
-    Const STR_HOLIDAY_MARK As String = "休"
-    
+Sub ScheduleUnlockedTask(taskCfg As TaskConfig, calCfg As CalendarConfig, ByVal taskRow As Long, ByVal numDays As Long, ByVal baseStartIdx As Long, ByVal metaData As Variant, ByVal holidayData As Variant, ByVal capacityLimits As Object, ByRef gridData As Variant, ByRef personUsage As Object, ByRef taskFinishIdx As Long, ByRef taskFinishAlloc As Double)
     Dim duration As Double
     Dim assigneeName As String
     Dim remaining As Double
@@ -214,9 +262,9 @@ Sub ScheduleUnlockedTask(ByVal taskRow As Long, ByVal numDays As Long, ByVal bas
     
     Dim newAllocArray() As Double
     
-    assigneeName = Trim(metaData(taskRow, COL_ASSIGNEE_IDX))
+    assigneeName = Trim(metaData(taskRow, taskCfg.COL_ASSIGNEE))
     duration = 0
-    If IsNumeric(metaData(taskRow, COL_DURATION_IDX)) Then duration = CDbl(metaData(taskRow, COL_DURATION_IDX))
+    If IsNumeric(metaData(taskRow, taskCfg.COL_DURATION)) Then duration = CDbl(metaData(taskRow, taskCfg.COL_DURATION))
     
     ' Clear grid for this row
     Call ClearTaskGridRow(taskRow, numDays, gridData)
@@ -235,8 +283,8 @@ Sub ScheduleUnlockedTask(ByVal taskRow As Long, ByVal numDays As Long, ByVal bas
         
         taskStartIdx = baseStartIdx
         
-        ' Add Lag (Start Offset) from Column E (COL_OFFSET_IDX=9)
-        lagDays = metaData(taskRow, COL_OFFSET_IDX)
+        ' Add Lag (Start Offset)
+        lagDays = metaData(taskRow, taskCfg.COL_OFFSET)
         If IsNumeric(lagDays) And Not IsEmpty(lagDays) Then
             taskStartIdx = taskStartIdx + CLng(lagDays)
         End If
@@ -253,7 +301,7 @@ Sub ScheduleUnlockedTask(ByVal taskRow As Long, ByVal numDays As Long, ByVal bas
         For dayIdx = taskStartIdx To numDays
             If remaining <= 0 Then Exit For
             
-            isHoliday = (Trim(holidayData(1, dayIdx)) = STR_HOLIDAY_MARK)
+            isHoliday = (Trim(holidayData(1, dayIdx)) = calCfg.STR_HOLIDAY_MARK)
             
             If Not isHoliday Then
                 ' Capacity based on Configured Limit
@@ -289,9 +337,9 @@ Function TestFindLockedTaskFinish(taskRow As Long, numDays As Long, ByRef gridDa
     TestFindLockedTaskFinish = fIdx & "|" & fAlloc
 End Function
 
-Function TestScheduleUnlockedTask(taskRow As Long, numDays As Long, baseStartIdx As Long, metaData As Variant, holidayData As Variant, capacityLimits As Object, ByRef gridData As Variant, ByRef personUsage As Object) As String
+Function TestScheduleUnlockedTask(taskCfg As TaskConfig, calCfg As CalendarConfig, taskRow As Long, numDays As Long, baseStartIdx As Long, metaData As Variant, holidayData As Variant, capacityLimits As Object, ByRef gridData As Variant, ByRef personUsage As Object) As String
     Dim fIdx As Long
     Dim fAlloc As Double
-    Call ScheduleUnlockedTask(taskRow, numDays, baseStartIdx, metaData, holidayData, capacityLimits, gridData, personUsage, fIdx, fAlloc)
+    Call ScheduleUnlockedTask(taskCfg, calCfg, taskRow, numDays, baseStartIdx, metaData, holidayData, capacityLimits, gridData, personUsage, fIdx, fAlloc)
     TestScheduleUnlockedTask = fIdx & "|" & fAlloc
 End Function

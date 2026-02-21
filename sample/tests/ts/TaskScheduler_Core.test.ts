@@ -200,6 +200,42 @@ async function main() {
     assert.strictEqual(resRow2Schedule, "3|0.5", "Row 2 Finish Idx 3, Alloc 0.5");
     assert.strictEqual(mockGridSchedule[2][3], 0.5, "Bob Day 3 gets 0.5");
 
+    // Test #9: CalcNumRows / CalcNumDays
+    console.log("\n[Test Suite] CalcNumRows / CalcNumDays");
+    // taskCfg.ROW_START = 19, calCfg.COL_CALENDAR_START = 24
+    assert.strictEqual(vbaTest.run('CalcNumRows', [19, taskCfg]), 1, "lastRow=19 -> 1 row");
+    assert.strictEqual(vbaTest.run('CalcNumRows', [25, taskCfg]), 7, "lastRow=25 -> 7 rows");
+    assert.strictEqual(vbaTest.run('CalcNumRows', [18, taskCfg]), 0, "lastRow=18 -> 0 rows (no data)");
+
+    assert.strictEqual(vbaTest.run('CalcNumDays', [24, calCfg]), 1, "lastCol=24 -> 1 day");
+    assert.strictEqual(vbaTest.run('CalcNumDays', [30, calCfg]), 7, "lastCol=30 -> 7 days");
+    assert.strictEqual(vbaTest.run('CalcNumDays', [23, calCfg]), 0, "lastCol=23 -> 0 days (no data)");
+
+    // Test #10: IsRowLocked / GetAssigneeName / GetTaskLevel
+    console.log("\n[Test Suite] IsRowLocked / GetAssigneeName / GetTaskLevel");
+    // taskCfg.COL_LOCK = 13, STR_LOCK_MARK = "L"
+    // taskCfg.COL_ASSIGNEE = 17
+    // taskCfg.COL_LEVEL = 8
+    const mockMetaRow: any = [[null]]; // dummy row 0
+    const row1: any[] = new Array(18).fill("");
+    row1[13] = "L";      // COL_LOCK
+    row1[17] = " Alice "; // COL_ASSIGNEE (with spaces)
+    row1[8] = 2;          // COL_LEVEL
+    mockMetaRow.push(row1);
+
+    const row2: any[] = new Array(18).fill("");
+    row2[13] = "";        // not locked
+    row2[17] = "Bob";
+    row2[8] = "";         // empty level
+    mockMetaRow.push(row2);
+
+    assert.strictEqual(vbaTest.run('IsRowLocked', [mockMetaRow, 1, taskCfg]), true, "Row 1 is locked");
+    assert.strictEqual(vbaTest.run('IsRowLocked', [mockMetaRow, 2, taskCfg]), false, "Row 2 is not locked");
+    assert.strictEqual(vbaTest.run('GetAssigneeName', [mockMetaRow, 1, taskCfg]), "Alice", "Row 1 assignee trimmed");
+    assert.strictEqual(vbaTest.run('GetAssigneeName', [mockMetaRow, 2, taskCfg]), "Bob", "Row 2 assignee");
+    assert.strictEqual(vbaTest.run('GetTaskLevel', [mockMetaRow, 1, taskCfg]), 2, "Row 1 level = 2");
+    assert.strictEqual(vbaTest.run('GetTaskLevel', [mockMetaRow, 2, taskCfg]), 0, "Row 2 empty level = 0");
+
     console.log("\n--- All tests passed! ---");
 }
 

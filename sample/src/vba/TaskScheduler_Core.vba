@@ -57,6 +57,63 @@ Function InitAssigneeConfig() As AssigneeConfig
     InitAssigneeConfig = cfg
 End Function
 
+' =========================================================
+' Getter Functions: Configフィールドのカプセル化
+' =========================================================
+
+' --- Boundary Detection (境界検出) ---
+
+Function GetLastTaskRow(ws As Worksheet, taskCfg As TaskConfig) As Long
+    GetLastTaskRow = ws.Cells(ws.Rows.Count, taskCfg.COL_DURATION).End(xlUp).Row
+End Function
+
+Function GetLastCalendarCol(ws As Worksheet, calCfg As CalendarConfig) As Long
+    GetLastCalendarCol = ws.Cells(calCfg.ROW_HEADER, ws.Columns.Count).End(xlToLeft).Column
+End Function
+
+Function CalcNumRows(lastRow As Long, taskCfg As TaskConfig) As Long
+    CalcNumRows = lastRow - taskCfg.ROW_START + 1
+End Function
+
+Function CalcNumDays(lastCol As Long, calCfg As CalendarConfig) As Long
+    CalcNumDays = lastCol - calCfg.COL_CALENDAR_START + 1
+End Function
+
+' --- Range Building (Range構築) ---
+
+Function GetMetaRange(ws As Worksheet, taskCfg As TaskConfig, assigneeCfg As AssigneeConfig, lastRow As Long) As Range
+    Set GetMetaRange = ws.Range(ws.Cells(taskCfg.ROW_START, 1), ws.Cells(lastRow, assigneeCfg.COL_NAME))
+End Function
+
+Function GetGridRange(ws As Worksheet, taskCfg As TaskConfig, calCfg As CalendarConfig, lastRow As Long, lastCol As Long) As Range
+    Set GetGridRange = ws.Range(ws.Cells(taskCfg.ROW_START, calCfg.COL_CALENDAR_START), ws.Cells(lastRow, lastCol))
+End Function
+
+Function GetHolidayRange(ws As Worksheet, calCfg As CalendarConfig, lastCol As Long) As Range
+    Set GetHolidayRange = ws.Range(ws.Cells(calCfg.ROW_HOLIDAY, calCfg.COL_CALENDAR_START), ws.Cells(calCfg.ROW_HOLIDAY, lastCol))
+End Function
+
+Function GetConfigRange(ws As Worksheet, assigneeCfg As AssigneeConfig) As Range
+    Set GetConfigRange = ws.Range(ws.Cells(assigneeCfg.ROW_START, assigneeCfg.COL_NAME), ws.Cells(assigneeCfg.ROW_END, assigneeCfg.COL_LIMIT))
+End Function
+
+' --- Per-Row Field Reads (行フィールド読取) ---
+
+Function IsRowLocked(metaData As Variant, taskRow As Long, taskCfg As TaskConfig) As Boolean
+    IsRowLocked = (UCase(Trim(metaData(taskRow, taskCfg.COL_LOCK))) = taskCfg.STR_LOCK_MARK)
+End Function
+
+Function GetAssigneeName(metaData As Variant, taskRow As Long, taskCfg As TaskConfig) As String
+    GetAssigneeName = Trim(metaData(taskRow, taskCfg.COL_ASSIGNEE))
+End Function
+
+Function GetTaskLevel(metaData As Variant, taskRow As Long, taskCfg As TaskConfig) As Long
+    GetTaskLevel = 0
+    If IsNumeric(metaData(taskRow, taskCfg.COL_LEVEL)) And Not IsEmpty(metaData(taskRow, taskCfg.COL_LEVEL)) Then
+        GetTaskLevel = CLng(metaData(taskRow, taskCfg.COL_LEVEL))
+    End If
+End Function
+
 ' Refactor #1: Extract Base Start Index Calculation
 ' 依存タスクの開始日を計算する (Calculate the start date for dependent tasks)
 ' Logic: If parentFinishAlloc < 0.5, start on parentFinishIdx. Else, parentFinishIdx + 1.

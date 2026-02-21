@@ -71,37 +71,38 @@ Sub AutoScheduleTasks()
     
     ' 1. Determine Range Bounds
     Dim lastRow As Long
-    lastRow = ws.Cells(ws.Rows.Count, taskCfg.COL_DURATION).End(xlUp).Row
-    If lastRow < taskCfg.ROW_START Then GoTo Cleanup
+    lastRow = GetLastTaskRow(ws, taskCfg)
     
     Dim lastCol As Long
-    lastCol = ws.Cells(calCfg.ROW_HEADER, ws.Columns.Count).End(xlToLeft).Column
-    If lastCol < calCfg.COL_CALENDAR_START Then GoTo Cleanup
+    lastCol = GetLastCalendarCol(ws, calCfg)
     
     Dim numRows As Long
-    numRows = lastRow - taskCfg.ROW_START + 1
+    numRows = CalcNumRows(lastRow, taskCfg)
+    If numRows < 1 Then GoTo Cleanup
+    
     Dim numDays As Long
-    numDays = lastCol - calCfg.COL_CALENDAR_START + 1
+    numDays = CalcNumDays(lastCol, calCfg)
+    If numDays < 1 Then GoTo Cleanup
     
     ' 2. Read Data into Arrays (Double Buffering)
     Dim rangeMeta As Range
-    Set rangeMeta = ws.Range(ws.Cells(taskCfg.ROW_START, 1), ws.Cells(lastRow, assigneeCfg.COL_NAME))
+    Set rangeMeta = GetMetaRange(ws, taskCfg, assigneeCfg, lastRow)
     Dim metaData As Variant
     metaData = rangeMeta.Value
     
     Dim rangeGrid As Range
-    Set rangeGrid = ws.Range(ws.Cells(taskCfg.ROW_START, calCfg.COL_CALENDAR_START), ws.Cells(lastRow, lastCol))
+    Set rangeGrid = GetGridRange(ws, taskCfg, calCfg, lastRow, lastCol)
     Dim gridData As Variant
     gridData = rangeGrid.Value
     
     Dim rangeHoliday As Range
-    Set rangeHoliday = ws.Range(ws.Cells(calCfg.ROW_HOLIDAY, calCfg.COL_CALENDAR_START), ws.Cells(calCfg.ROW_HOLIDAY, lastCol))
+    Set rangeHoliday = GetHolidayRange(ws, calCfg, lastCol)
     Dim holidayData As Variant
     holidayData = rangeHoliday.Value 
     
     ' 3. Read Capacity Config
     Dim rangeConfig As Range
-    Set rangeConfig = ws.Range(ws.Cells(assigneeCfg.ROW_START, assigneeCfg.COL_NAME), ws.Cells(assigneeCfg.ROW_END, assigneeCfg.COL_LIMIT))
+    Set rangeConfig = GetConfigRange(ws, assigneeCfg)
     Dim configData As Variant
     configData = rangeConfig.Value
     
@@ -137,16 +138,13 @@ Sub AutoScheduleTasks()
     Dim isLocked As Boolean
     
     For taskRow = 1 To numRows
-        isLocked = (UCase(Trim(metaData(taskRow, taskCfg.COL_LOCK))) = taskCfg.STR_LOCK_MARK)
-        assigneeName = Trim(metaData(taskRow, taskCfg.COL_ASSIGNEE))
+        isLocked = IsRowLocked(metaData, taskRow, taskCfg)
+        assigneeName = GetAssigneeName(metaData, taskRow, taskCfg)
         
         ' ===================================
         ' 【階層ロジック】: D列に基づく依存関係の計算 (Level 1, 2, 3...)
         ' ===================================
-        currentLevel = 0
-        If IsNumeric(metaData(taskRow, taskCfg.COL_LEVEL)) And Not IsEmpty(metaData(taskRow, taskCfg.COL_LEVEL)) Then
-            currentLevel = CLng(metaData(taskRow, taskCfg.COL_LEVEL))
-        End If
+        currentLevel = GetTaskLevel(metaData, taskRow, taskCfg)
         
         ' Level 1 -> 新しいタスクブロックの開始 (完了日リセット)
         If currentLevel = 1 Then

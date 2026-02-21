@@ -113,11 +113,8 @@ Sub AutoScheduleTasks()
     Dim personUsage As Object
     Set personUsage = CreateObject("Scripting.Dictionary")
     
-    Dim taskRow As Long, dayIdx As Long
+    Dim taskRow As Long
     Dim assigneeName As String
-    Dim newAllocArray() As Double
-    Dim cellVal As Variant
-    Dim existingAlloc As Double
     
     ' =========================================================
     ' Phase 1: Scan Locked Rows ("L")
@@ -127,17 +124,6 @@ Sub AutoScheduleTasks()
     ' =========================================================
     ' Phase 2: Schedule & Calculate Dependencies (Locked & Unlocked)
     ' =========================================================
-    Dim duration As Double
-    Dim remaining As Double
-    Dim dailyAlloc As Double
-    Dim capacity As Double
-    Dim maxDailyLoad As Double
-    Dim isHoliday As Boolean
-    Dim lagDays As Variant
-    Dim taskStartIdx As Long
-    Dim prevRowIdx As Long
-    Dim prevStartIdx As Long
-    
     ' Level Tracking
     Dim currentLevel As Long
     Dim levelMaxFinish(0 To 100) As Long

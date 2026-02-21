@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useMemo } from 'react'
-import { Play, Eraser, TerminalSquare, FlaskConical } from 'lucide-react'
+import { Play, Eraser, TerminalSquare, FlaskConical, Github } from 'lucide-react'
 import { Lexer, TokenType } from './compiler/lexer'
 import { Parser } from './compiler/parser'
 import { Evaluator } from './compiler/evaluator'
@@ -409,6 +409,10 @@ assert.strictEqual(r, 300);`;
         <div className="flex items-center gap-3">
           <TerminalSquare className="w-6 h-6 text-blue-500" />
           <h1 className="text-xl font-semibold tracking-tight">VBA Web Compiler</h1>
+          <a href="https://github.com/jca02266/vba-compiler" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-neutral-500 hover:text-white transition-colors text-sm">
+            <Github className="w-4 h-4" />
+            GitHub
+          </a>
         </div>
       </header>
 

@@ -23,6 +23,11 @@ Excelがない環境で、作成したVBAコードの動作確認、リファク
 ## 使い方（UI画面の起動）
 ブラウザ上でVBAエディタ環境を立ち上げ、`Debug.Print` クラスの動作などを確認します。
 
+デプロイ済みのサイトは以下から利用できます:
+👉 https://vba-web-compiler.netlify.app/
+
+ローカルで起動する場合:
+
 ```bash
 # 依存関係のインストール
 npm install

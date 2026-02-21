@@ -28,6 +28,10 @@ export class VBATest {
     eval(exprString: string): any {
         return this.evaluator.evalExpression(exprString);
     }
+
+    set(name: string, value: any): void {
+        this.evaluator.set(name, value);
+    }
 }
 
 // Keep backward compatibility

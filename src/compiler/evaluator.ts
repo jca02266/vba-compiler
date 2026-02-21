@@ -21,6 +21,7 @@ import {
     EraseStatement,
     ReDimStatement,
     ExitStatement,
+    OnErrorStatement,
     TypeDeclaration,
     TypeMember,
     Parser,
@@ -111,6 +112,8 @@ export type PrintCallback = (output: string) => void;
 export class Evaluator {
     private env: Environment;
     private onPrint: PrintCallback;
+    private errorHandlerLabel: string | null = null;
+    private currentProcBody: Statement[] | null = null;
 
     constructor(onPrint: PrintCallback) {
         this.env = new Environment();
@@ -161,10 +164,35 @@ export class Evaluator {
         this.env.set('true', true);
         this.env.set('false', false);
         this.env.set('empty', EmptyVBA);
+        this.env.set('nothing', null);
+
+        // Add common Excel VBA constants
+        this.env.set('xlup', -4162);
+        this.env.set('xldown', -4121);
+        this.env.set('xltoleft', -4159);
+        this.env.set('xltoright', -4161);
+
+        // Add VBA Err object
+        this.env.set('err', {
+            number: 0,
+            source: '',
+            description: '',
+            clear: function () { this.number = 0; this.source = ''; this.description = ''; },
+            raise: function (num: number, src?: string, desc?: string) {
+                this.number = num;
+                this.source = src || '';
+                this.description = desc || '';
+                throw new Error(desc || `VBA Error ${num}`);
+            }
+        });
     }
 
     public get(name: string): any {
         return this.env.get(name);
+    }
+
+    public set(name: string, value: any): void {
+        this.env.set(name, value);
     }
 
     public callProcedure(name: string, args: any[]): any {
@@ -185,15 +213,17 @@ export class Evaluator {
             localEnv.setLocally(paramName, argValue);
         }
 
-        // Save current env and swap to local
+        // Save current env and error handler state, swap to local
         const previousEnv = this.env;
+        const previousErrorHandler = this.errorHandlerLabel;
+        const previousProcBody = this.currentProcBody;
         this.env = localEnv;
+        this.errorHandlerLabel = null;
+        this.currentProcBody = proc.body;
 
         try {
-            // Execute procedure body
-            for (const stmt of proc.body) {
-                this.evaluateStatement(stmt);
-            }
+            // Execute procedure body with error handling support
+            this.executeStatements(proc.body, 0);
         } catch (e: any) {
             if (e && e.type === 'Exit') {
                 if ((e.target === 'Function' && proc.isFunction) || (e.target === 'Sub' && !proc.isFunction)) {
@@ -205,8 +235,10 @@ export class Evaluator {
                 throw e; // Real error
             }
         } finally {
-            // Restore previous environment
+            // Restore previous environment and error handler state
             this.env = previousEnv;
+            this.errorHandlerLabel = previousErrorHandler;
+            this.currentProcBody = previousProcBody;
         }
 
         // Return the function value if it was a function
@@ -260,7 +292,11 @@ export class Evaluator {
                 this.evaluateSetStatement(stmt as SetStatement);
                 break;
             case 'OnErrorStatement':
-                // Ignore for now (No-op)
+                this.evaluateOnErrorStatement(stmt as OnErrorStatement);
+                break;
+            case 'ResumeStatement':
+                // Resume Next is handled as a throw from within error handler
+                throw { type: 'ResumeNext' };
                 break;
             case 'EraseStatement':
                 this.evaluateEraseStatement(stmt as EraseStatement);
@@ -459,6 +495,71 @@ export class Evaluator {
         }
     }
 
+    private evaluateOnErrorStatement(stmt: OnErrorStatement) {
+        if (stmt.label === '0') {
+            // On Error GoTo 0 - disable error handling
+            this.errorHandlerLabel = null;
+        } else if (stmt.label.toLowerCase() === 'resume next') {
+            // On Error Resume Next - not implemented yet, treat as no-op
+            this.errorHandlerLabel = null;
+        } else {
+            // On Error GoTo <label>
+            this.errorHandlerLabel = stmt.label;
+        }
+    }
+
+    // Execute a sequence of statements starting from startIndex, with error handling support
+    private executeStatements(body: Statement[], startIndex: number) {
+        for (let i = startIndex; i < body.length; i++) {
+            const stmt = body[i];
+            if (this.errorHandlerLabel) {
+                // Error handler active: wrap each statement in try-catch
+                try {
+                    this.evaluateStatement(stmt);
+                } catch (e: any) {
+                    // Let Exit and ResumeNext propagate
+                    if (e && (e.type === 'Exit' || e.type === 'ResumeNext')) {
+                        throw e;
+                    }
+                    // Find the error handler label in the body and jump to it
+                    const labelIndex = body.findIndex(s =>
+                        s.type === 'LabelStatement' &&
+                        (s as any).label === this.errorHandlerLabel
+                    );
+                    if (labelIndex >= 0) {
+                        // Populate Err object with error info
+                        const errObj = this.env.get('err');
+                        if (errObj) {
+                            errObj.number = 1000;
+                            errObj.source = 'VBARuntime';
+                            errObj.description = e.message || String(e);
+                        }
+                        // Save the resume point (statement after the one that caused the error)
+                        const resumeIndex = i + 1;
+                        // Disable error handler while inside handler body to prevent infinite recursion
+                        const savedHandler = this.errorHandlerLabel;
+                        this.errorHandlerLabel = null;
+                        try {
+                            this.executeStatements(body, labelIndex + 1);
+                        } catch (resumeE: any) {
+                            if (resumeE && resumeE.type === 'ResumeNext') {
+                                // Resume Next: restore error handler and continue from statement after error
+                                this.errorHandlerLabel = savedHandler;
+                                this.executeStatements(body, resumeIndex);
+                                return;
+                            }
+                            throw resumeE;
+                        }
+                        return; // Error handler completed normally
+                    }
+                    throw e; // Label not found, re-throw
+                }
+            } else {
+                this.evaluateStatement(stmt);
+            }
+        }
+    }
+
     private evaluateEraseStatement(stmt: EraseStatement) {
         this.env.set(stmt.name.name, []);
     }
@@ -529,12 +630,14 @@ export class Evaluator {
                 }
 
                 const previousEnv = this.env;
+                const previousErrorHandler = this.errorHandlerLabel;
+                const previousProcBody = this.currentProcBody;
                 this.env = localEnv;
+                this.errorHandlerLabel = null;
+                this.currentProcBody = proc.body;
 
                 try {
-                    for (const s of proc.body) {
-                        this.evaluateStatement(s);
-                    }
+                    this.executeStatements(proc.body, 0);
                 } catch (e: any) {
                     if (e && e.type === 'Exit' && (e.target === 'Sub' || e.target === 'Function')) {
                         // Exit the procedure cleanly
@@ -544,6 +647,8 @@ export class Evaluator {
                 }
 
                 this.env = previousEnv; // Restore scope
+                this.errorHandlerLabel = previousErrorHandler;
+                this.currentProcBody = previousProcBody;
 
                 // Synchronize ByRef arguments back to caller scope
                 for (const ref of byRefArgs) {
@@ -632,12 +737,26 @@ export class Evaluator {
         const obj = this.evaluateExpression(expr.object);
         const propName = expr.property.name.toLowerCase();
 
-        // Handling function calls without parens like `col.Count` -> `col.count()` 
-        // This is a simplification for VBA collections.
-        if (obj && typeof obj[propName] === 'function') {
-            return obj[propName]();
-        } else if (obj && propName in obj) {
-            return obj[propName];
+        if (obj && propName in obj) {
+            const val = obj[propName];
+            // Auto-call only zero-arg functions (VBA property/method without parens like col.Count, ws.Add)
+            // Functions requiring args (like Worksheets(name)) are returned as references
+            if (typeof val === 'function' && val.length === 0) {
+                return val.call(obj);
+            }
+            return val;
+        }
+        // Case-insensitive fallback for JS objects
+        if (obj && typeof obj === 'object') {
+            const keys = Object.keys(obj);
+            const match = keys.find(k => k.toLowerCase() === propName);
+            if (match) {
+                const val = obj[match];
+                if (typeof val === 'function' && val.length === 0) {
+                    return val.call(obj);
+                }
+                return val;
+            }
         }
         throw new Error(`Execution error: Method or property not found '${propName}'`);
     }
@@ -661,6 +780,7 @@ export class Evaluator {
             case '>': return leftVal > rightVal;
             case '<=': return leftVal <= rightVal;
             case '>=': return leftVal >= rightVal;
+            case 'is': return leftVal === rightVal;
             case 'and': return leftVal && rightVal;
             case 'or': return leftVal || rightVal;
             default:

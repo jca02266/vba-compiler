@@ -38,6 +38,10 @@ export enum TokenType {
     KeywordByRef,
     KeywordByVal,
     KeywordType,
+    KeywordNothing,
+    KeywordOptional,
+    KeywordIs,
+    KeywordResume,
     OperatorPlus,
     OperatorMinus,
     OperatorMultiply,
@@ -57,6 +61,7 @@ export enum TokenType {
     OperatorRParen,
     OperatorDot,
     OperatorColon,
+    OperatorColonEquals,
     Newline,
     EOF,
     Unknown
@@ -212,6 +217,11 @@ export class Lexer {
 
             if (char === ':') {
                 this.advance();
+                // Check for named argument syntax `:=`
+                if (this.peek() === '=') {
+                    this.advance();
+                    return { type: TokenType.OperatorColonEquals, value: ':=', line: this.line };
+                }
                 return { type: TokenType.OperatorColon, value: ':', line: this.line };
             }
 
@@ -287,6 +297,10 @@ export class Lexer {
                 if (lowerId === 'byval') return { type: TokenType.KeywordByVal, value: idStr, line: this.line };
                 if (lowerId === 'mod') return { type: TokenType.KeywordMod, value: idStr, line: this.line };
                 if (lowerId === 'type') return { type: TokenType.KeywordType, value: idStr, line: this.line };
+                if (lowerId === 'nothing') return { type: TokenType.KeywordNothing, value: idStr, line: this.line };
+                if (lowerId === 'optional') return { type: TokenType.KeywordOptional, value: idStr, line: this.line };
+                if (lowerId === 'is') return { type: TokenType.KeywordIs, value: idStr, line: this.line };
+                if (lowerId === 'resume') return { type: TokenType.KeywordResume, value: idStr, line: this.line };
 
                 return { type: TokenType.Identifier, value: idStr, line: this.line };
             }

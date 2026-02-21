@@ -1,5 +1,10 @@
 import { Token, TokenType } from './lexer';
 
+export interface ResumeStatement extends Statement {
+    type: 'ResumeStatement';
+    target: string; // 'Next' or label
+}
+
 export interface ASTNode {
     type: string;
 }
@@ -244,6 +249,8 @@ export class Parser {
             return this.parseEraseStatement();
         } else if (token.type === TokenType.KeywordReDim) {
             return this.parseReDimStatement();
+        } else if (token.type === TokenType.KeywordResume) {
+            return this.parseResumeStatement();
         } else if (token.type === TokenType.KeywordOption) {
             this.advance(); // 'Option'
             if (this.match(TokenType.KeywordExplicit)) {
@@ -292,9 +299,9 @@ export class Parser {
                     this.peek().type !== TokenType.KeywordNext &&
                     this.peek().type !== TokenType.KeywordLoop
                 ) {
-                    args.push(this.parseExpression());
+                    args.push(this.parseCallArgument());
                     while (this.match(TokenType.OperatorComma)) {
-                        args.push(this.parseExpression());
+                        args.push(this.parseCallArgument());
                     }
                 }
 
@@ -332,6 +339,13 @@ export class Parser {
             if (this.peek().type !== TokenType.OperatorRParen) {
                 let isByVal = false;
                 let paramNameToken = this.peek();
+
+                // Skip 'Optional' keyword
+                if (paramNameToken.type === TokenType.KeywordOptional) {
+                    this.advance();
+                    paramNameToken = this.peek();
+                }
+
                 if (paramNameToken.type === TokenType.KeywordByVal || paramNameToken.type === TokenType.KeywordByRef) {
                     isByVal = (paramNameToken.type === TokenType.KeywordByVal);
                     this.advance(); // consume ByVal/ByRef
@@ -345,12 +359,23 @@ export class Parser {
                     this.advance(); // consume Type name
                 }
 
+                // Skip default value (e.g. '= Nothing')
+                if (this.match(TokenType.OperatorEquals)) {
+                    this.parseExpression(); // consume default value expression
+                }
+
                 parameters.push({ type: 'Parameter', name: paramName.value, isByVal });
 
                 while (this.match(TokenType.OperatorComma)) {
                     isByVal = false;
-                    // Optional ByVal/ByRef
+                    // Skip 'Optional' keyword
                     let nextParamToken = this.peek();
+                    if (nextParamToken.type === TokenType.KeywordOptional) {
+                        this.advance();
+                        nextParamToken = this.peek();
+                    }
+
+                    // Optional ByVal/ByRef
                     if (nextParamToken.type === TokenType.KeywordByVal || nextParamToken.type === TokenType.KeywordByRef) {
                         isByVal = (nextParamToken.type === TokenType.KeywordByVal);
                         this.advance(); // consume ByVal/ByRef
@@ -360,6 +385,11 @@ export class Parser {
 
                     if (this.match(TokenType.KeywordAs)) {
                         this.advance(); // consume Type name
+                    }
+
+                    // Skip default value (e.g. '= Nothing')
+                    if (this.match(TokenType.OperatorEquals)) {
+                        this.parseExpression(); // consume default value expression
                     }
                     parameters.push({ type: 'Parameter', name: paramName.value, isByVal });
                 }
@@ -498,6 +528,16 @@ export class Parser {
         }
 
         return { type: 'ExitStatement', exitType };
+    }
+
+    private parseResumeStatement(): ResumeStatement {
+        this.advance(); // consume 'Resume'
+        let target = '';
+        // Consume remaining tokens on the line (e.g., 'Next')
+        while (this.peek().type !== TokenType.Newline && this.peek().type !== TokenType.EOF) {
+            target += this.advance().value;
+        }
+        return { type: 'ResumeStatement', target: target.trim() } as ResumeStatement;
     }
 
     private parseEraseStatement(): EraseStatement {
@@ -769,7 +809,8 @@ export class Parser {
         let left = this.parseRelational();
         while (
             this.peek().type === TokenType.OperatorEquals ||
-            this.peek().type === TokenType.OperatorNotEquals
+            this.peek().type === TokenType.OperatorNotEquals ||
+            this.peek().type === TokenType.KeywordIs
         ) {
             const operator = this.advance().value;
             const right = this.parseRelational();
@@ -881,6 +922,8 @@ export class Parser {
             expr = { type: 'Identifier', name: token.value } as Identifier;
         } else if (token.type === TokenType.KeywordEmpty) {
             expr = { type: 'Identifier', name: token.value } as Identifier;
+        } else if (token.type === TokenType.KeywordNothing) {
+            expr = { type: 'Identifier', name: 'Nothing' } as Identifier;
         } else if (token.type === TokenType.OperatorLParen) {
             expr = this.parseExpression();
             if (!this.match(TokenType.OperatorRParen)) {
@@ -898,9 +941,9 @@ export class Parser {
             } else if (this.match(TokenType.OperatorLParen)) {
                 const args: Expression[] = [];
                 if (this.peek().type !== TokenType.OperatorRParen) {
-                    args.push(this.parseExpression());
+                    args.push(this.parseCallArgument());
                     while (this.match(TokenType.OperatorComma)) {
-                        args.push(this.parseExpression());
+                        args.push(this.parseCallArgument());
                     }
                 }
                 if (!this.match(TokenType.OperatorRParen)) {
@@ -912,5 +955,17 @@ export class Parser {
             }
         }
         return expr;
+    }
+
+    // Parse a call argument, handling named arguments (e.g., shift:=xlUp)
+    private parseCallArgument(): Expression {
+        // Check for named argument: Identifier := Expression
+        if (this.peek().type === TokenType.Identifier &&
+            this.pos + 1 < this.tokens.length &&
+            this.tokens[this.pos + 1].type === TokenType.OperatorColonEquals) {
+            this.advance(); // consume identifier (the name)
+            this.advance(); // consume ':='
+        }
+        return this.parseExpression();
     }
 }

@@ -17,6 +17,7 @@ Type TaskConfig
     COL_DURATION As Long
     COL_ASSIGNEE As Long
     STR_LOCK_MARK As String
+    MAX_LEVEL As Long
 End Type
 
 ' 担当者の位置と属性
@@ -45,6 +46,7 @@ Function InitTaskConfig() As TaskConfig
     cfg.COL_DURATION = 15
     cfg.COL_ASSIGNEE = 17
     cfg.STR_LOCK_MARK = "L"
+    cfg.MAX_LEVEL = 100
     InitTaskConfig = cfg
 End Function
 

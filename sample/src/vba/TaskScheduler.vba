@@ -127,8 +127,10 @@ Sub AutoScheduleTasks()
     ' =========================================================
     ' Level Tracking
     Dim currentLevel As Long
-    Dim levelMaxFinish(0 To 100) As Long
-    Dim levelMaxFinishAlloc(0 To 100) As Double
+    Dim levelMaxFinish() As Long
+    Dim levelMaxFinishAlloc() As Double
+    ReDim levelMaxFinish(0 To taskCfg.MAX_LEVEL)
+    ReDim levelMaxFinishAlloc(0 To taskCfg.MAX_LEVEL)
     Dim parentFinishIdx As Long
     Dim parentFinishAlloc As Double
     Dim baseStartIdx As Long

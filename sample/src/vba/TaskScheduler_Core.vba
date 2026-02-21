@@ -21,10 +21,10 @@ End Type
 
 ' 担当者の位置と属性
 Type AssigneeConfig
-    CONFIG_COL_NAME As Long
-    CONFIG_COL_LIMIT As Long
-    CONFIG_ROW_START As Long
-    CONFIG_ROW_END As Long
+    COL_NAME As Long
+    COL_LIMIT As Long
+    ROW_START As Long
+    ROW_END As Long
 End Type
 
 Function InitCalendarConfig() As CalendarConfig
@@ -50,10 +50,10 @@ End Function
 
 Function InitAssigneeConfig() As AssigneeConfig
     Dim cfg As AssigneeConfig
-    cfg.CONFIG_COL_NAME = 17
-    cfg.CONFIG_COL_LIMIT = 18
-    cfg.CONFIG_ROW_START = 8
-    cfg.CONFIG_ROW_END = 14
+    cfg.COL_NAME = 17
+    cfg.COL_LIMIT = 18
+    cfg.ROW_START = 8
+    cfg.ROW_END = 14
     InitAssigneeConfig = cfg
 End Function
 

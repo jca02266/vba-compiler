@@ -17,9 +17,9 @@ Sub AutoScheduleTasks()
     '
     ' 3. 担当者キャパシティ設定 (AssigneeConfig)
     '    - 設定範囲: I8:J12 (デフォルト)
-    '      - CONFIG_ROW_START / END で行範囲を指定。
-    '      - CONFIG_COL_NAME: 担当者名列。
-    '      - CONFIG_COL_LIMIT: キャパシティ上限値列。
+    '      - ROW_START / END で行範囲を指定。
+    '      - COL_NAME: 担当者名列。
+    '      - COL_LIMIT: キャパシティ上限値列。
     '    - 各担当者の最大工数 (デフォルト 1.0) を設定可能。
     '
     ' 4. マイクロタスク (微小タスク)
@@ -85,7 +85,7 @@ Sub AutoScheduleTasks()
     
     ' 2. Read Data into Arrays (Double Buffering)
     Dim rangeMeta As Range
-    Set rangeMeta = ws.Range(ws.Cells(taskCfg.ROW_START, 1), ws.Cells(lastRow, assigneeCfg.CONFIG_COL_NAME))
+    Set rangeMeta = ws.Range(ws.Cells(taskCfg.ROW_START, 1), ws.Cells(lastRow, assigneeCfg.COL_NAME))
     Dim metaData As Variant
     metaData = rangeMeta.Value
     
@@ -101,7 +101,7 @@ Sub AutoScheduleTasks()
     
     ' 3. Read Capacity Config
     Dim rangeConfig As Range
-    Set rangeConfig = ws.Range(ws.Cells(assigneeCfg.CONFIG_ROW_START, assigneeCfg.CONFIG_COL_NAME), ws.Cells(assigneeCfg.CONFIG_ROW_END, assigneeCfg.CONFIG_COL_LIMIT))
+    Set rangeConfig = ws.Range(ws.Cells(assigneeCfg.ROW_START, assigneeCfg.COL_NAME), ws.Cells(assigneeCfg.ROW_END, assigneeCfg.COL_LIMIT))
     Dim configData As Variant
     configData = rangeConfig.Value
     

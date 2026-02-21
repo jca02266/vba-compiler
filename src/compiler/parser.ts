@@ -214,6 +214,11 @@ export class Parser {
         return program;
     }
 
+    public parseExpressionPublic(): Expression {
+        this.skipNewlines();
+        return this.parseExpression();
+    }
+
     private parseStatement(): Statement | null {
         const token = this.peek();
 

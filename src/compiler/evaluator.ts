@@ -23,7 +23,9 @@ import {
     ExitStatement,
     TypeDeclaration,
     TypeMember,
+    Parser,
 } from './parser';
+import { Lexer } from './lexer';
 
 export const EmptyVBA = null;
 
@@ -218,6 +220,14 @@ export class Evaluator {
         for (const stmt of program.body) {
             this.evaluateStatement(stmt);
         }
+    }
+
+    public evalExpression(exprString: string): any {
+        const lexer = new Lexer(exprString);
+        const tokens = lexer.tokenize();
+        const parser = new Parser(tokens);
+        const expr = parser.parseExpressionPublic();
+        return this.evaluateExpression(expr);
     }
 
     private evaluateStatement(stmt: Statement) {

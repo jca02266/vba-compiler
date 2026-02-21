@@ -21,6 +21,8 @@ import {
     EraseStatement,
     ReDimStatement,
     ExitStatement,
+    TypeDeclaration,
+    TypeMember,
 } from './parser';
 
 export const EmptyVBA = null;
@@ -28,6 +30,7 @@ export const EmptyVBA = null;
 export class Environment {
     private variables: Map<string, any> = new Map();
     private procedures: Map<string, ProcedureDeclaration> = new Map();
+    private types: Map<string, TypeMember[]> = new Map();
     public enclosing?: Environment;
 
     constructor(enclosing?: Environment) {
@@ -78,6 +81,22 @@ export class Environment {
         while (env) {
             if (env.procedures.has(key)) {
                 return env.procedures.get(key);
+            }
+            env = env.enclosing;
+        }
+        return undefined;
+    }
+
+    setType(name: string, members: TypeMember[]) {
+        this.types.set(name.toLowerCase(), members);
+    }
+
+    getType(name: string): TypeMember[] | undefined {
+        const key = name.toLowerCase();
+        let env: Environment | undefined = this;
+        while (env) {
+            if (env.types.has(key)) {
+                return env.types.get(key);
             }
             env = env.enclosing;
         }
@@ -245,6 +264,9 @@ export class Evaluator {
             case 'LabelStatement':
                 // No-op for now. Label execution just passes through.
                 break;
+            case 'TypeDeclaration':
+                this.evaluateTypeDeclaration(stmt as TypeDeclaration);
+                break;
             default:
                 throw new Error(`Execution error: Unknown statement type ${stmt.type}`);
         }
@@ -379,9 +401,29 @@ export class Evaluator {
                     count: function () { return this.items.length; },
                     item: function (index: number) { return this.items[index - 1]; }
                 };
+            } else if (decl.objectType) {
+                // Check if it's a user-defined Type
+                const typeMembers = this.env.getType(decl.objectType);
+                if (typeMembers) {
+                    // Create an instance of the Type as a plain object with default values
+                    const instance: any = {};
+                    for (const member of typeMembers) {
+                        const mt = member.memberType.toLowerCase();
+                        if (mt === 'string') {
+                            instance[member.name.toLowerCase()] = '';
+                        } else {
+                            instance[member.name.toLowerCase()] = 0;
+                        }
+                    }
+                    initialValue = instance;
+                }
             }
             this.env.set(decl.name.name, initialValue);
         }
+    }
+
+    private evaluateTypeDeclaration(stmt: TypeDeclaration) {
+        this.env.setType(stmt.name, stmt.members);
     }
 
     private evaluateCallStatement(stmt: CallStatement) {

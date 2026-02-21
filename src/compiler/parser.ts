@@ -99,6 +99,17 @@ export interface LabelStatement extends Statement {
     label: string;
 }
 
+export interface TypeMember {
+    name: string;
+    memberType: string;
+}
+
+export interface TypeDeclaration extends Statement {
+    type: 'TypeDeclaration';
+    name: string;
+    members: TypeMember[];
+}
+
 export interface AssignmentStatement extends Statement {
     type: 'AssignmentStatement';
     left: Expression; // Identifier, CallExpression (for arrays), MemberExpression
@@ -234,6 +245,8 @@ export class Parser {
                 // Ignore for now
             }
             return null;
+        } else if (token.type === TokenType.KeywordType) {
+            return this.parseTypeDeclaration();
         } else if (token.type === TokenType.KeywordCall) {
             this.advance(); // consume 'Call'
             const expr = this.parsePrimary();
@@ -516,6 +529,46 @@ export class Parser {
         }
 
         return { type: 'ReDimStatement', name, bounds };
+    }
+
+    private parseTypeDeclaration(): TypeDeclaration {
+        this.advance(); // consume 'Type'
+        const nameToken = this.advance();
+        if (nameToken.type !== TokenType.Identifier) {
+            throw new Error(`Parse error: Expected identifier after 'Type' at line ${nameToken.line}`);
+        }
+        const typeName = nameToken.value;
+        const members: TypeMember[] = [];
+
+        this.skipNewlines();
+
+        // Parse members until 'End Type'
+        while (this.peek().type !== TokenType.KeywordEnd && this.peek().type !== TokenType.EOF) {
+            // Each member line: memberName As memberType
+            const memberNameToken = this.advance();
+            if (memberNameToken.type !== TokenType.Identifier) {
+                throw new Error(`Parse error: Expected member name in Type at line ${memberNameToken.line}`);
+            }
+
+            if (!this.match(TokenType.KeywordAs)) {
+                throw new Error(`Parse error: Expected 'As' in Type member declaration at line ${this.peek().line}`);
+            }
+
+            const memberTypeToken = this.advance();
+            members.push({ name: memberNameToken.value, memberType: memberTypeToken.value });
+
+            this.skipNewlines();
+        }
+
+        // Consume 'End Type'
+        if (this.peek().type === TokenType.KeywordEnd) {
+            this.advance(); // 'End'
+            if (!this.match(TokenType.KeywordType)) {
+                throw new Error(`Parse error: Expected 'Type' after 'End' at line ${this.peek().line}`);
+            }
+        }
+
+        return { type: 'TypeDeclaration', name: typeName, members };
     }
 
     private parseForStatement(): ForStatement {

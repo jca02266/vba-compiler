@@ -37,6 +37,7 @@ export enum TokenType {
     KeywordExit,
     KeywordByRef,
     KeywordByVal,
+    KeywordType,
     OperatorPlus,
     OperatorMinus,
     OperatorMultiply,
@@ -285,6 +286,7 @@ export class Lexer {
                 if (lowerId === 'byref') return { type: TokenType.KeywordByRef, value: idStr, line: this.line };
                 if (lowerId === 'byval') return { type: TokenType.KeywordByVal, value: idStr, line: this.line };
                 if (lowerId === 'mod') return { type: TokenType.KeywordMod, value: idStr, line: this.line };
+                if (lowerId === 'type') return { type: TokenType.KeywordType, value: idStr, line: this.line };
 
                 return { type: TokenType.Identifier, value: idStr, line: this.line };
             }

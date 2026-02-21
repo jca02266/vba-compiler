@@ -261,8 +261,8 @@ function createBrowserTestRunner(vbaSource: string, outputFn: (msg: string) => v
   const evaluator = new Evaluator(() => { });  // VBA source compilation output is suppressed
   evaluator.evaluate(ast);
 
-  // vbaTest object: matches VBATest class interface
-  const vbaTest = {
+  // vbaEditor object: matches VBATest class interface
+  const vbaEditor = {
     run(procedureName: string, args: any[]): any {
       return evaluator.callProcedure(procedureName, args);
     },
@@ -284,7 +284,7 @@ function createBrowserTestRunner(vbaSource: string, outputFn: (msg: string) => v
     }
   };
 
-  return { vbaTest, assert };
+  return { vbaEditor, assert };
 }
 
 // ======= Main App =======
@@ -304,12 +304,12 @@ End Sub
 MainLoop`
 
   const defaultTestCode = `// eval example: evaluate VBA expression directly
-assert.strictEqual(vbaTest.eval("AddNumbers(3, 4)"), 7);
-assert.strictEqual(vbaTest.eval("AddNumbers(0, 0)"), 0);
-assert.strictEqual(vbaTest.eval("AddNumbers(-5, 10)"), 5);
+assert.strictEqual(vbaEditor.eval("AddNumbers(3, 4)"), 7);
+assert.strictEqual(vbaEditor.eval("AddNumbers(0, 0)"), 0);
+assert.strictEqual(vbaEditor.eval("AddNumbers(-5, 10)"), 5);
 
 // run example: call VBA procedure with JS arguments
-const r = vbaTest.run("AddNumbers", [100, 200]);
+const r = vbaEditor.run("AddNumbers", [100, 200]);
 assert.strictEqual(r, 300);`;
 
   const [code, setCode] = useState(defaultSnippet)
@@ -342,7 +342,7 @@ assert.strictEqual(r, 300);`;
 
     try {
       // Create test runner with VBA source
-      const { vbaTest, assert } = createBrowserTestRunner(code, (msg) => {
+      const { vbaEditor, assert } = createBrowserTestRunner(code, (msg) => {
         outputs.push(msg);
         if (msg.includes('[PASS]')) passCount++;
         if (msg.includes('[FAIL]')) failCount++;
@@ -364,9 +364,9 @@ assert.strictEqual(r, 300);`;
       // Strip TypeScript type annotations for browser execution
       const jsCode = stripTypeAnnotations(testCode);
 
-      // Execute test code with vbaTest pre-created
-      const testFn = new Function('vbaTest', 'assert', 'console', 'Map', jsCode);
-      testFn(vbaTest, assert, testConsole, Map);
+      // Execute test code with vbaEditor pre-created
+      const testFn = new Function('vbaEditor', 'assert', 'console', 'Map', jsCode);
+      testFn(vbaEditor, assert, testConsole, Map);
 
       const summary = failCount === 0
         ? `\n✅ All ${passCount} tests passed!`

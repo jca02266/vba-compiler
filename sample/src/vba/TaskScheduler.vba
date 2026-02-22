@@ -101,10 +101,10 @@ Sub AutoScheduleTasks()
     holidayData = rangeHoliday.Value 
     
     ' 3. Read Capacity Config
-    Dim rangeConfig As Range
-    Set rangeConfig = GetConfigRange(ws, assigneeCfg)
+    Dim rangeAssignee As Range
+    Set rangeAssignee = GetAssigneeRange(ws, assigneeCfg)
     Dim assigneeDataFrame As Variant
-    assigneeDataFrame = rangeConfig.Value
+    assigneeDataFrame = rangeAssignee.Value
     
     ' Build Capacity Dict: Key=Name, Value=MaxLimit (Default 1.0)
     Dim capacityLimits As Object

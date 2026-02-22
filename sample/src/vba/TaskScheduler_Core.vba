@@ -94,8 +94,8 @@ Function GetHolidayRange(ws As Worksheet, calCfg As CalendarConfig, lastCol As L
     Set GetHolidayRange = ws.Range(ws.Cells(calCfg.ROW_HOLIDAY, calCfg.COL_CALENDAR_START), ws.Cells(calCfg.ROW_HOLIDAY, lastCol))
 End Function
 
-Function GetConfigRange(ws As Worksheet, assigneeCfg As AssigneeConfig) As Range
-    Set GetConfigRange = ws.Range(ws.Cells(assigneeCfg.ROW_START, assigneeCfg.COL_NAME), ws.Cells(assigneeCfg.ROW_END, assigneeCfg.COL_LIMIT))
+Function GetAssigneeRange(ws As Worksheet, assigneeCfg As AssigneeConfig) As Range
+    Set GetAssigneeRange = ws.Range(ws.Cells(assigneeCfg.ROW_START, assigneeCfg.COL_NAME), ws.Cells(assigneeCfg.ROW_END, assigneeCfg.COL_LIMIT))
 End Function
 
 ' --- Per-Row Field Reads (行フィールド読取) ---

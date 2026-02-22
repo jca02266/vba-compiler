@@ -22,6 +22,21 @@ Excelがない環境で、作成したVBAコードの動作確認、リファク
   - `TaskScheduler_Core.test.ts`: `TaskScheduler_Core.vba` 内の各関数の振る舞いを検証するユニットテスト。
 - `tests/ts/` - 汎用のテストランナーユーティリティ。
 
+## テスト環境での `run` と `eval` の使い分け
+TypeScript側からVBAのロジックを呼び出す際、用途に応じて以下の2つのメソッドを利用します。
+
+- **`vbaEditor.run(procedureName, args)`**:
+  - **用途**: VBAのサブルーチン（`Sub`）や関数（`Function`）に、TypeScript側からの配列引数を渡して実行します。
+  - **特徴**: トップレベルから直接プロシージャ名を指定して呼び出すための「標準的」な実行メソッドです。
+  - **例**: `const result = vbaEditor.run("AddNumbers", [100, 200]);`
+
+- **`vbaEditor.eval(expressionString)`**:
+  - **用途**: VBAの「式（Expression）」や「文（Statement）」を文字列として渡し、その場でVBAとして評価（パース）して実行します。
+  - **特徴**: 
+    - `AddNumbers(3, 4)` のように、VBAとして有効な式を評価し、その戻り値をダイレクトに取得する場合に向いています。
+    - また、`MainLoop` のように括弧なしで「文」として実行されるVBA特有の呼び出しも自動で判別して実行します（この場合の戻り値は `undefined` となります）。
+  - **例**: `const result = vbaEditor.eval("AddNumbers(3, 4)");` または `vbaEditor.eval("MainLoop");`
+
 ## 自動テストの実行
 CLIからTypeScriptのテストランナーを利用し、`TaskScheduler_Core.vba` 内の抽出された関数を直接評価・検証します。
 

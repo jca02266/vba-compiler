@@ -16,7 +16,7 @@ Sub AutoScheduleTasks()
     '      例: 親完了翌日(基本) + 2日(Lag) = 3日後開始
     '
     ' 3. 担当者キャパシティ設定 (AssigneeConfig)
-    '    - 設定範囲: I8:J12 (デフォルト)
+    '    - 設定範囲:
     '      - ROW_START / END で行範囲を指定。
     '      - COL_NAME: 担当者名列。
     '      - COL_LIMIT: キャパシティ上限値列。
@@ -85,15 +85,15 @@ Sub AutoScheduleTasks()
     If numDays < 1 Then GoTo Cleanup
     
     ' 2. Read Data into Arrays (Double Buffering)
-    Dim rangeMeta As Range
-    Set rangeMeta = GetMetaRange(ws, taskCfg, assigneeCfg, lastRow)
-    Dim metaData As Variant
-    metaData = rangeMeta.Value
+    Dim rangeTask As Range
+    Set rangeTask = GetTaskRange(ws, taskCfg, lastRow)
+    Dim taskDataFrame As Variant
+    taskDataFrame = rangeTask.Value
     
-    Dim rangeGrid As Range
-    Set rangeGrid = GetGridRange(ws, taskCfg, calCfg, lastRow, lastCol)
-    Dim gridData As Variant
-    gridData = rangeGrid.Value
+    Dim rangeSchedule As Range
+    Set rangeSchedule = GetScheduleRange(ws, taskCfg, calCfg, lastRow, lastCol)
+    Dim scheduleGrid As Variant
+    scheduleGrid = rangeSchedule.Value
     
     Dim rangeHoliday As Range
     Set rangeHoliday = GetHolidayRange(ws, calCfg, lastCol)
@@ -120,14 +120,14 @@ Sub AutoScheduleTasks()
     ' =========================================================
     ' Phase 1: Scan Locked Rows ("L")
     ' =========================================================
-    Call ScanLockedRows(taskCfg, numRows, numDays, metaData, gridData, personUsage)
+    Call ScanLockedRows(taskCfg, numRows, numDays, taskDataFrame, scheduleGrid, personUsage)
     
     ' =========================================================
     ' Phase 2: Schedule & Calculate Dependencies (Locked & Unlocked)
     ' =========================================================
     ' Level Tracking
     Dim maxLevel As Long
-    maxLevel = GetMaxLevel(metaData, numRows, taskCfg)
+    maxLevel = GetMaxLevel(taskDataFrame, numRows, taskCfg)
     Dim currentLevel As Long
     Dim levelMaxFinish() As Long
     Dim levelMaxFinishAlloc() As Double
@@ -142,13 +142,13 @@ Sub AutoScheduleTasks()
     Dim isLocked As Boolean
     
     For taskRow = 1 To numRows
-        isLocked = IsRowLocked(metaData, taskRow, taskCfg)
-        assigneeName = GetAssigneeName(metaData, taskRow, taskCfg)
+        isLocked = IsRowLocked(taskDataFrame, taskRow, taskCfg)
+        assigneeName = GetAssigneeName(taskDataFrame, taskRow, taskCfg)
         
         ' ===================================
         ' 【階層ロジック】: D列に基づく依存関係の計算 (Level 1, 2, 3...)
         ' ===================================
-        currentLevel = GetTaskLevel(metaData, taskRow, taskCfg)
+        currentLevel = GetTaskLevel(taskDataFrame, taskRow, taskCfg)
         
         ' Level 1 -> 新しいタスクブロックの開始 (完了日リセット)
         If currentLevel = 1 Then
@@ -174,14 +174,14 @@ Sub AutoScheduleTasks()
         If isLocked Then
             ' Only update dependency state from existing grid
             ' Scan from right to left to find finish
-            Call FindLockedTaskFinish(taskRow, numDays, gridData, taskFinishIdx, taskFinishAlloc)
+            Call FindLockedTaskFinish(taskRow, numDays, scheduleGrid, taskFinishIdx, taskFinishAlloc)
             
              ' Update Level Max Finish Logic for Locked Row
              Call UpdateLevelFinish(currentLevel, taskFinishIdx, taskFinishAlloc, levelMaxFinish, levelMaxFinishAlloc)
             
         Else
             ' Unlocked -> Schedule it
-            Call ScheduleUnlockedTask(taskCfg, calCfg, taskRow, numDays, baseStartIdx, metaData, holidayData, capacityLimits, gridData, personUsage, taskFinishIdx, taskFinishAlloc)
+            Call ScheduleUnlockedTask(taskCfg, calCfg, taskRow, numDays, baseStartIdx, taskDataFrame, holidayData, capacityLimits, scheduleGrid, personUsage, taskFinishIdx, taskFinishAlloc)
             
             ' Update Level Max Finish Logic for Unlocked Row
             Call UpdateLevelFinish(currentLevel, taskFinishIdx, taskFinishAlloc, levelMaxFinish, levelMaxFinishAlloc)
@@ -190,7 +190,7 @@ Sub AutoScheduleTasks()
     Next taskRow
     
     ' 4. Write Back to Sheet
-    rangeGrid.Value = gridData
+    rangeGrid.Value = scheduleGrid
     
     ' MsgBox "Scheduling Complete!"
     

@@ -44,6 +44,7 @@ Function InitTaskConfig() As TaskConfig
     cfg.COL_LOCK = 13
     cfg.COL_DURATION = 15
     cfg.COL_ASSIGNEE = 17
+    cfg.COL_END = 17
     cfg.STR_LOCK_MARK = "L"
     InitTaskConfig = cfg
 End Function
@@ -81,12 +82,12 @@ End Function
 
 ' --- Range Building (Range構築) ---
 
-Function GetMetaRange(ws As Worksheet, taskCfg As TaskConfig, assigneeCfg As AssigneeConfig, lastRow As Long) As Range
-    Set GetMetaRange = ws.Range(ws.Cells(taskCfg.ROW_START, 1), ws.Cells(lastRow, assigneeCfg.COL_NAME))
+Function GetTaskRange(ws As Worksheet, taskCfg As TaskConfig, lastRow As Long) As Range
+    Set GetTaskRange = ws.Range(ws.Cells(taskCfg.ROW_START, 1), ws.Cells(lastRow, taskCfg.COL_END))
 End Function
 
-Function GetGridRange(ws As Worksheet, taskCfg As TaskConfig, calCfg As CalendarConfig, lastRow As Long, lastCol As Long) As Range
-    Set GetGridRange = ws.Range(ws.Cells(taskCfg.ROW_START, calCfg.COL_CALENDAR_START), ws.Cells(lastRow, lastCol))
+Function GetScheduleRange(ws As Worksheet, taskCfg As TaskConfig, calCfg As CalendarConfig, lastRow As Long, lastCol As Long) As Range
+    Set GetScheduleRange = ws.Range(ws.Cells(taskCfg.ROW_START, calCfg.COL_CALENDAR_START), ws.Cells(lastRow, lastCol))
 End Function
 
 Function GetHolidayRange(ws As Worksheet, calCfg As CalendarConfig, lastCol As Long) As Range
@@ -99,28 +100,28 @@ End Function
 
 ' --- Per-Row Field Reads (行フィールド読取) ---
 
-Function IsRowLocked(metaData As Variant, taskRow As Long, taskCfg As TaskConfig) As Boolean
-    IsRowLocked = (UCase(Trim(metaData(taskRow, taskCfg.COL_LOCK))) = taskCfg.STR_LOCK_MARK)
+Function IsRowLocked(taskDataFrame As Variant, taskRow As Long, taskCfg As TaskConfig) As Boolean
+    IsRowLocked = (UCase(Trim(taskDataFrame(taskRow, taskCfg.COL_LOCK))) = taskCfg.STR_LOCK_MARK)
 End Function
 
-Function GetAssigneeName(metaData As Variant, taskRow As Long, taskCfg As TaskConfig) As String
-    GetAssigneeName = Trim(metaData(taskRow, taskCfg.COL_ASSIGNEE))
+Function GetAssigneeName(taskDataFrame As Variant, taskRow As Long, taskCfg As TaskConfig) As String
+    GetAssigneeName = Trim(taskDataFrame(taskRow, taskCfg.COL_ASSIGNEE))
 End Function
 
-Function GetTaskLevel(metaData As Variant, taskRow As Long, taskCfg As TaskConfig) As Long
+Function GetTaskLevel(taskDataFrame As Variant, taskRow As Long, taskCfg As TaskConfig) As Long
     GetTaskLevel = 0
-    If IsNumeric(metaData(taskRow, taskCfg.COL_LEVEL)) And Not IsEmpty(metaData(taskRow, taskCfg.COL_LEVEL)) Then
-        GetTaskLevel = CLng(metaData(taskRow, taskCfg.COL_LEVEL))
+    If IsNumeric(taskDataFrame(taskRow, taskCfg.COL_LEVEL)) And Not IsEmpty(taskDataFrame(taskRow, taskCfg.COL_LEVEL)) Then
+        GetTaskLevel = CLng(taskDataFrame(taskRow, taskCfg.COL_LEVEL))
     End If
 End Function
 
-Function GetMaxLevel(metaData As Variant, numRows As Long, taskCfg As TaskConfig) As Long
+Function GetMaxLevel(taskDataFrame As Variant, numRows As Long, taskCfg As TaskConfig) As Long
     Dim maxLvl As Long
     Dim lvl As Long
     Dim taskRow As Long
     maxLvl = 0
     For taskRow = 1 To numRows
-        lvl = GetTaskLevel(metaData, taskRow, taskCfg)
+        lvl = GetTaskLevel(taskDataFrame, taskRow, taskCfg)
         If lvl > maxLvl Then maxLvl = lvl
     Next taskRow
     GetMaxLevel = maxLvl
@@ -244,7 +245,7 @@ End Function
 
 ' Refactor #6: Extract Phase 1 (Scan Locked Rows)
 ' 全タスクをスキャンし、「L」マーク（ロック）がついている場合は既存スケジュールを personUsage (実績Dict) に事前割り当てする
-Sub ScanLockedRows(taskCfg As TaskConfig, numRows As Long, numDays As Long, metaData As Variant, gridData As Variant, ByRef personUsage As Object)
+Sub ScanLockedRows(taskCfg As TaskConfig, numRows As Long, numDays As Long, taskDataFrame As Variant, scheduleGrid As Variant, ByRef personUsage As Object)
     Dim taskRow As Long
     Dim dayIdx As Long
     Dim assigneeName As String
@@ -253,7 +254,7 @@ Sub ScanLockedRows(taskCfg As TaskConfig, numRows As Long, numDays As Long, meta
     Dim existingAlloc As Double
 
     For taskRow = 1 To numRows
-        assigneeName = Trim(metaData(taskRow, taskCfg.COL_ASSIGNEE))
+        assigneeName = Trim(taskDataFrame(taskRow, taskCfg.COL_ASSIGNEE))
         
         If assigneeName <> "" Then
             ' Initialize empty array for person if not exists
@@ -263,10 +264,10 @@ Sub ScanLockedRows(taskCfg As TaskConfig, numRows As Long, numDays As Long, meta
             End If
             
             ' If row is locked, scan its grid and pre-allocate usage
-            If UCase(Trim(metaData(taskRow, taskCfg.COL_LOCK))) = taskCfg.STR_LOCK_MARK Then
+            If UCase(Trim(taskDataFrame(taskRow, taskCfg.COL_LOCK))) = taskCfg.STR_LOCK_MARK Then
                 newAllocArray = personUsage(assigneeName)
                 For dayIdx = 1 To numDays
-                    cellVal = gridData(taskRow, dayIdx)
+                    cellVal = scheduleGrid(taskRow, dayIdx)
                     existingAlloc = 0
                     If IsNumeric(cellVal) And Not IsEmpty(cellVal) Then
                         existingAlloc = CDbl(cellVal)
@@ -284,16 +285,16 @@ End Sub
 
 ' Refactor #7: Extract ClearTaskGridRow
 ' 指定されたタスク行のスケジュールグリッド（右側）をクリアする
-Sub ClearTaskGridRow(taskRow As Long, numDays As Long, ByRef gridData As Variant)
+Sub ClearTaskGridRow(taskRow As Long, numDays As Long, ByRef scheduleGrid As Variant)
     Dim dayIdx As Long
     For dayIdx = 1 To numDays
-        gridData(taskRow, dayIdx) = Empty
+        scheduleGrid(taskRow, dayIdx) = Empty
     Next dayIdx
 End Sub
 
 ' Refactor #8: Extract FindLockedTaskFinish
 ' ロックされたタスク行を右から左へスキャンし、最後に割り当てがある日 (taskFinishIdx) とその量 (taskFinishAlloc) を見つける
-Sub FindLockedTaskFinish(ByVal taskRow As Long, ByVal numDays As Long, ByRef gridData As Variant, ByRef taskFinishIdx As Long, ByRef taskFinishAlloc As Double)
+Sub FindLockedTaskFinish(ByVal taskRow As Long, ByVal numDays As Long, ByRef scheduleGrid As Variant, ByRef taskFinishIdx As Long, ByRef taskFinishAlloc As Double)
     Dim dayIdx As Long
     Dim cellVal As Variant
     Dim existingAlloc As Double
@@ -302,7 +303,7 @@ Sub FindLockedTaskFinish(ByVal taskRow As Long, ByVal numDays As Long, ByRef gri
     taskFinishAlloc = 0
     
     For dayIdx = numDays To 1 Step -1
-        cellVal = gridData(taskRow, dayIdx)
+        cellVal = scheduleGrid(taskRow, dayIdx)
         existingAlloc = 0
         If IsNumeric(cellVal) And Not IsEmpty(cellVal) Then existingAlloc = CDbl(cellVal)
         
@@ -316,7 +317,7 @@ End Sub
 
 ' Refactor #9: Extract ScheduleUnlockedTask
 ' 個別のアンロック済みタスクスケジュール（日別の工数割り当てなど）処理を実行する
-Sub ScheduleUnlockedTask(taskCfg As TaskConfig, calCfg As CalendarConfig, ByVal taskRow As Long, ByVal numDays As Long, ByVal baseStartIdx As Long, ByVal metaData As Variant, ByVal holidayData As Variant, ByVal capacityLimits As Object, ByRef gridData As Variant, ByRef personUsage As Object, ByRef taskFinishIdx As Long, ByRef taskFinishAlloc As Double)
+Sub ScheduleUnlockedTask(taskCfg As TaskConfig, calCfg As CalendarConfig, ByVal taskRow As Long, ByVal numDays As Long, ByVal baseStartIdx As Long, ByVal taskDataFrame As Variant, ByVal holidayData As Variant, ByVal capacityLimits As Object, ByRef scheduleGrid As Variant, ByRef personUsage As Object, ByRef taskFinishIdx As Long, ByRef taskFinishAlloc As Double)
     Dim duration As Double
     Dim assigneeName As String
     Dim remaining As Double
@@ -331,12 +332,12 @@ Sub ScheduleUnlockedTask(taskCfg As TaskConfig, calCfg As CalendarConfig, ByVal 
     
     Dim newAllocArray() As Double
     
-    assigneeName = Trim(metaData(taskRow, taskCfg.COL_ASSIGNEE))
+    assigneeName = Trim(taskDataFrame(taskRow, taskCfg.COL_ASSIGNEE))
     duration = 0
-    If IsNumeric(metaData(taskRow, taskCfg.COL_DURATION)) Then duration = CDbl(metaData(taskRow, taskCfg.COL_DURATION))
+    If IsNumeric(taskDataFrame(taskRow, taskCfg.COL_DURATION)) Then duration = CDbl(taskDataFrame(taskRow, taskCfg.COL_DURATION))
     
     ' Clear grid for this row
-    Call ClearTaskGridRow(taskRow, numDays, gridData)
+    Call ClearTaskGridRow(taskRow, numDays, scheduleGrid)
     
     If assigneeName <> "" And duration > 0 Then
         If Not personUsage.Exists(assigneeName) Then
@@ -353,7 +354,7 @@ Sub ScheduleUnlockedTask(taskCfg As TaskConfig, calCfg As CalendarConfig, ByVal 
         taskStartIdx = baseStartIdx
         
         ' Add Lag (Start Offset)
-        lagDays = metaData(taskRow, taskCfg.COL_OFFSET)
+        lagDays = taskDataFrame(taskRow, taskCfg.COL_OFFSET)
         If IsNumeric(lagDays) And Not IsEmpty(lagDays) Then
             taskStartIdx = taskStartIdx + CLng(lagDays)
         End If
@@ -380,7 +381,7 @@ Sub ScheduleUnlockedTask(taskCfg As TaskConfig, calCfg As CalendarConfig, ByVal 
                 dailyAlloc = CalcDailyAllocation(capacity, remaining, isMicroTask)
                     
                 If dailyAlloc > 0 Then
-                    gridData(taskRow, dayIdx) = dailyAlloc
+                    scheduleGrid(taskRow, dayIdx) = dailyAlloc
                     newAllocArray(dayIdx) = newAllocArray(dayIdx) + dailyAlloc
                     remaining = remaining - dailyAlloc
                     
@@ -399,16 +400,16 @@ End Sub
 ' Test Wrappers (Used by TaskScheduler_Core.test.ts)
 ' ---------------------------------------------------------
 
-Function TestFindLockedTaskFinish(taskRow As Long, numDays As Long, ByRef gridData As Variant) As String
+Function TestFindLockedTaskFinish(taskRow As Long, numDays As Long, ByRef scheduleGrid As Variant) As String
     Dim fIdx As Long
     Dim fAlloc As Double
-    Call FindLockedTaskFinish(taskRow, numDays, gridData, fIdx, fAlloc)
+    Call FindLockedTaskFinish(taskRow, numDays, scheduleGrid, fIdx, fAlloc)
     TestFindLockedTaskFinish = fIdx & "|" & fAlloc
 End Function
 
-Function TestScheduleUnlockedTask(taskCfg As TaskConfig, calCfg As CalendarConfig, taskRow As Long, numDays As Long, baseStartIdx As Long, metaData As Variant, holidayData As Variant, capacityLimits As Object, ByRef gridData As Variant, ByRef personUsage As Object) As String
+Function TestScheduleUnlockedTask(taskCfg As TaskConfig, calCfg As CalendarConfig, taskRow As Long, numDays As Long, baseStartIdx As Long, taskDataFrame As Variant, holidayData As Variant, capacityLimits As Object, ByRef scheduleGrid As Variant, ByRef personUsage As Object) As String
     Dim fIdx As Long
     Dim fAlloc As Double
-    Call ScheduleUnlockedTask(taskCfg, calCfg, taskRow, numDays, baseStartIdx, metaData, holidayData, capacityLimits, gridData, personUsage, fIdx, fAlloc)
+    Call ScheduleUnlockedTask(taskCfg, calCfg, taskRow, numDays, baseStartIdx, taskDataFrame, holidayData, capacityLimits, scheduleGrid, personUsage, fIdx, fAlloc)
     TestScheduleUnlockedTask = fIdx & "|" & fAlloc
 End Function

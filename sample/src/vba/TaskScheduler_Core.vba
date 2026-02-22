@@ -171,8 +171,8 @@ End Function
 ' Logic: Handle 0.25 unit allocations and the 0.1 micro-task minimum based on capacity.
 ' ロジック: 残り容量と工数から0.25単位の標準割り当てを計算する。マイクロタスクの場合は最低0.1を保証する
 Function CalcDailyAllocation(capacity As Double, remaining As Double, isMicroTask As Boolean) As Double
-    Dim allocatedHours As Double
-    allocatedHours = 0
+    Dim dailyAllocation As Double
+    dailyAllocation = 0
     
     Dim maxUnits As Long
     maxUnits = Int(capacity / 0.25)
@@ -185,7 +185,7 @@ Function CalcDailyAllocation(capacity As Double, remaining As Double, isMicroTas
          ' Only allocate if capacity >= 0.1
          ' If allocated, it consumes 0.1 and we are done.
          If capacity >= 0.1 Then
-            allocatedHours = 0.1
+            dailyAllocation = 0.1
          End If
     Else
          ' Standard Logic (0.25 units)
@@ -194,11 +194,11 @@ Function CalcDailyAllocation(capacity As Double, remaining As Double, isMicroTas
          If maxUnits > 0 And neededUnits > 0 Then
             allocateUnits = neededUnits
             If allocateUnits > maxUnits Then allocateUnits = maxUnits
-            allocatedHours = allocateUnits * 0.25
+            dailyAllocation = allocateUnits * 0.25
          End If
     End If
     
-    CalcDailyAllocation = allocatedHours
+    CalcDailyAllocation = dailyAllocation
 End Function
 
 ' Refactor #4: Extract Level Finish Update Logic
@@ -321,7 +321,7 @@ Sub ScheduleUnlockedTask(taskCfg As TaskConfig, calCfg As CalendarConfig, ByVal 
     Dim duration As Double
     Dim assigneeName As String
     Dim remaining As Double
-    Dim allocatedHours As Double
+    Dim dailyAllocation As Double
     Dim capacity As Double
     Dim maxDailyLoad As Double
     Dim isHoliday As Boolean
@@ -378,16 +378,16 @@ Sub ScheduleUnlockedTask(taskCfg As TaskConfig, calCfg As CalendarConfig, ByVal 
                 capacity = maxDailyLoad - newAllocArray(dayIdx)
                 If capacity < 0 Then capacity = 0
                 
-                allocatedHours = CalcDailyAllocation(capacity, remaining, isMicroTask)
+                dailyAllocation = CalcDailyAllocation(capacity, remaining, isMicroTask)
                     
-                If allocatedHours > 0 Then
-                    scheduleGrid(taskRow, dayIdx) = allocatedHours
-                    newAllocArray(dayIdx) = newAllocArray(dayIdx) + allocatedHours
-                    remaining = remaining - allocatedHours
+                If dailyAllocation > 0 Then
+                    scheduleGrid(taskRow, dayIdx) = dailyAllocation
+                    newAllocArray(dayIdx) = newAllocArray(dayIdx) + dailyAllocation
+                    remaining = remaining - dailyAllocation
                     
                     ' Update row finish tracking
                     taskFinishIdx = dayIdx
-                    taskFinishAlloc = allocatedHours
+                    taskFinishAlloc = dailyAllocation
                 End If
             End If
         Next dayIdx

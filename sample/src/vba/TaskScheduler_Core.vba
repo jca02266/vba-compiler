@@ -221,7 +221,7 @@ End Sub
 ' Refactor #5: Extract Capacity Config Building
 ' 設定データ（2D配列）から、担当者名と1日の最大稼働工数（デフォルト1.0）を紐づけたディクショナリを生成する
 ' Logic: Parse a 2D array [Name, Capacity] and return a Scripting.Dictionary 
-Function BuildCapacityDict(configData As Variant) As Object
+Function BuildCapacityDict(assigneeDataFrame As Variant) As Object
     Dim capacityLimits As Object
     Set capacityLimits = CreateObject("Scripting.Dictionary")
     
@@ -229,12 +229,12 @@ Function BuildCapacityDict(configData As Variant) As Object
     Dim cfgCapacity As Double
     Dim cfgName As String
     
-    For cfgRow = 1 To UBound(configData, 1)
-        cfgName = Trim(configData(cfgRow, 1))
+    For cfgRow = 1 To UBound(assigneeDataFrame, 1)
+        cfgName = Trim(assigneeDataFrame(cfgRow, 1))
         If cfgName <> "" Then
             cfgCapacity = 1# ' Default
-            If IsNumeric(configData(cfgRow, 2)) And Not IsEmpty(configData(cfgRow, 2)) Then
-                cfgCapacity = CDbl(configData(cfgRow, 2))
+            If IsNumeric(assigneeDataFrame(cfgRow, 2)) And Not IsEmpty(assigneeDataFrame(cfgRow, 2)) Then
+                cfgCapacity = CDbl(assigneeDataFrame(cfgRow, 2))
             End If
             capacityLimits(cfgName) = cfgCapacity
         End If

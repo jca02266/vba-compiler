@@ -103,12 +103,12 @@ Sub AutoScheduleTasks()
     ' 3. Read Capacity Config
     Dim rangeConfig As Range
     Set rangeConfig = GetConfigRange(ws, assigneeCfg)
-    Dim configData As Variant
-    configData = rangeConfig.Value
+    Dim assigneeDataFrame As Variant
+    assigneeDataFrame = rangeConfig.Value
     
     ' Build Capacity Dict: Key=Name, Value=MaxLimit (Default 1.0)
     Dim capacityLimits As Object
-    Set capacityLimits = BuildCapacityDict(configData)
+    Set capacityLimits = BuildCapacityDict(assigneeDataFrame)
     
     ' 4. Initialize Resource Usage Dictionary
     Dim personUsage As Object

@@ -258,8 +258,21 @@ function createBrowserTestRunner(vbaSource: string, outputFn: (msg: string) => v
   const tokens = lexer.tokenize();
   const parser = new Parser(tokens);
   const ast = parser.parse();
-  const evaluator = new Evaluator(() => { });  // VBA source compilation output is suppressed
-  evaluator.evaluate(ast);
+
+  // Only evaluate declarations (Functions, Subs, Types, Consts, Variables) 
+  // to avoid executing top-level subroutine calls (e.g. `MainLoop`) during initialization
+  const declarationAst = {
+    ...ast,
+    body: ast.body.filter(stmt =>
+      stmt.type === 'ProcedureDeclaration' ||
+      stmt.type === 'TypeDeclaration' ||
+      stmt.type === 'VariableDeclaration' ||
+      stmt.type === 'ConstDeclaration'
+    )
+  };
+
+  const evaluator = new Evaluator((out) => { outputFn(out) });
+  evaluator.evaluate(declarationAst);
 
   // vbaEditor object: matches VBATest class interface
   const vbaEditor = {

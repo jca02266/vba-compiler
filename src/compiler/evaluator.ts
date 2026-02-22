@@ -26,7 +26,7 @@ import {
     TypeMember,
     Parser,
 } from './parser';
-import { Lexer } from './lexer';
+import { Lexer, TokenType } from './lexer';
 
 export const EmptyVBA = null;
 
@@ -257,9 +257,34 @@ export class Evaluator {
     public evalExpression(exprString: string): any {
         const lexer = new Lexer(exprString);
         const tokens = lexer.tokenize();
-        const parser = new Parser(tokens);
-        const expr = parser.parseExpressionPublic();
-        return this.evaluateExpression(expr);
+
+        try {
+            const exprParser = new Parser(tokens);
+            const expr = exprParser.parseExpressionPublic();
+            const nextToken = (exprParser as any).peek();
+
+            // If the expression consumed the entire line (or stopped at EOF)
+            if (!nextToken || nextToken.type === TokenType.EOF || nextToken.type === TokenType.Newline) {
+                // If it is just an Identifier matching a Procedure, run it as a CallStatement
+                if (expr.type === 'Identifier') {
+                    const name = (expr as Identifier).name;
+                    if (this.env.getProcedure(name)) {
+                        this.callProcedure(name, []);
+                        return undefined;
+                    }
+                }
+                // Otherwise evaluate as a typical expression returning a value
+                return this.evaluateExpression(expr);
+            }
+        } catch (e) {
+            // Ignored: fallback to full statement parsing
+        }
+
+        // Fallback: parse and evaluate as a Statement (returns undefined)
+        const stmtParser = new Parser(tokens);
+        const program = stmtParser.parse();
+        this.evaluate(program);
+        return undefined;
     }
 
     private evaluateStatement(stmt: Statement) {

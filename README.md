@@ -22,8 +22,18 @@ Excelがない環境で、作成したVBAコードの動作確認、リファク
   - `TaskScheduler_Core.test.ts`: `TaskScheduler_Core.vba` 内の各関数の振る舞いを検証するユニットテスト。
 - `tests/ts/` - 汎用のテストランナーユーティリティ。
 
-## 使い方（UI画面の起動）
+## 自動テストの実行
+CLIからTypeScriptのテストランナーを利用し、`TaskScheduler_Core.vba` 内の抽出された関数を直接評価・検証します。
+
+```bash
+# バンドルしてテスト（AST構築・検証）を実行
+npx esbuild sample/tests/ts/TaskScheduler_Core.test.ts --bundle --outfile=sample/tests/ts/TaskScheduler_Core.test.cjs --platform=node && node sample/tests/ts/TaskScheduler_Core.test.cjs
+```
+
+
+## UI画面の起動
 ブラウザ上でVBAエディタ環境を立ち上げ、`Debug.Print` クラスの動作などを確認します。
+これはおまけです。VBAを実行できることを示すデモのためにあります。
 
 デプロイ済みのサイトは以下から利用できます:
 👉 https://vba-web-compiler.netlify.app/
@@ -36,12 +46,4 @@ npm install
 
 # 開発用ローカルサーバーの起動 (http://localhost:5173/)
 npm run dev
-```
-
-## 自動テストの実行
-CLIからTypeScriptのテストランナーを利用し、`TaskScheduler_Core.vba` 内の抽出された関数を直接評価・検証します。
-
-```bash
-# バンドルしてテスト（AST構築・検証）を実行
-npx esbuild sample/tests/ts/TaskScheduler_Core.test.ts --bundle --outfile=sample/tests/ts/TaskScheduler_Core.test.cjs --platform=node && node sample/tests/ts/TaskScheduler_Core.test.cjs
 ```

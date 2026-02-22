@@ -110,22 +110,22 @@ async function main() {
         [null, 0.5, 0.0, 0.25] // Row 3 (Alice, Locked)
     ];
 
-    const personUsage = {
+    const assigneeUsage = {
         __isVbaDict__: true,
         __map__: new Map<string, any>(),
         add: function (k: string, v: any) { this.__map__.set(k, v); },
         exists: function (k: string) { return this.__map__.has(k); }
     };
 
-    vbaTest.run('ScanLockedRows', [taskCfg, 3, 3, mockMetaData, mockGridData, personUsage]);
+    vbaTest.run('ScanLockedRows', [taskCfg, 3, 3, mockMetaData, mockGridData, assigneeUsage]);
 
     // Bob has 0.5 on Day 2, 0.5 on Day 3
-    const bobUsage = personUsage.__map__.get("Bob");
+    const bobUsage = assigneeUsage.__map__.get("Bob");
     assert.strictEqual(bobUsage[2], 0.5, "Bob day 2 usage pre-allocated");
     assert.strictEqual(bobUsage[3], 0.5, "Bob day 3 usage pre-allocated");
 
     // Alice is Row 1 (Unlocked) padding to 0, Row 3 (Locked) adding 0.5 and 0.25
-    const aliceUsage = personUsage.__map__.get("Alice");
+    const aliceUsage = assigneeUsage.__map__.get("Alice");
     assert.strictEqual(aliceUsage[1], 0.5, "Alice day 1 usage pre-allocated");
     assert.strictEqual(aliceUsage[2], 0.0, "Alice day 2 remains 0");
     assert.strictEqual(aliceUsage[3], 0.25, "Alice day 3 usage pre-allocated");

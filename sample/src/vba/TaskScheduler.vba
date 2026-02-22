@@ -111,8 +111,8 @@ Sub AutoScheduleTasks()
     Set capacityLimits = BuildCapacityDict(assigneeDataFrame)
     
     ' 4. Initialize Resource Usage Dictionary
-    Dim personUsage As Object
-    Set personUsage = CreateObject("Scripting.Dictionary")
+    Dim assigneeUsage As Object
+    Set assigneeUsage = CreateObject("Scripting.Dictionary")
     
     Dim taskRow As Long
     Dim assigneeName As String
@@ -120,7 +120,7 @@ Sub AutoScheduleTasks()
     ' =========================================================
     ' Phase 1: Scan Locked Rows ("L")
     ' =========================================================
-    Call ScanLockedRows(taskCfg, numRows, numDays, taskDataFrame, scheduleGrid, personUsage)
+    Call ScanLockedRows(taskCfg, numRows, numDays, taskDataFrame, scheduleGrid, assigneeUsage)
     
     ' =========================================================
     ' Phase 2: Schedule & Calculate Dependencies (Locked & Unlocked)
@@ -181,7 +181,7 @@ Sub AutoScheduleTasks()
             
         Else
             ' Unlocked -> Schedule it
-            Call ScheduleUnlockedTask(taskCfg, calCfg, taskRow, numDays, baseStartIdx, taskDataFrame, holidayData, capacityLimits, scheduleGrid, personUsage, taskFinishIdx, taskFinishAlloc)
+            Call ScheduleUnlockedTask(taskCfg, calCfg, taskRow, numDays, baseStartIdx, taskDataFrame, holidayData, capacityLimits, scheduleGrid, assigneeUsage, taskFinishIdx, taskFinishAlloc)
             
             ' Update Level Max Finish Logic for Unlocked Row
             Call UpdateLevelFinish(currentLevel, taskFinishIdx, taskFinishAlloc, levelMaxFinish, levelMaxFinishAlloc)
@@ -190,7 +190,7 @@ Sub AutoScheduleTasks()
     Next taskRow
     
     ' 4. Write Back to Sheet
-    rangeGrid.Value = scheduleGrid
+    rangeSchedule.Value = scheduleGrid
     
     ' MsgBox "Scheduling Complete!"
     

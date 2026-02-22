@@ -171,8 +171,8 @@ End Function
 ' Logic: Handle 0.25 unit allocations and the 0.1 micro-task minimum based on capacity.
 ' ロジック: 残り容量と工数から0.25単位の標準割り当てを計算する。マイクロタスクの場合は最低0.1を保証する
 Function CalcDailyAllocation(capacity As Double, remaining As Double, isMicroTask As Boolean) As Double
-    Dim dailyAlloc As Double
-    dailyAlloc = 0
+    Dim allocatedHours As Double
+    allocatedHours = 0
     
     Dim maxUnits As Long
     maxUnits = Int(capacity / 0.25)
@@ -185,7 +185,7 @@ Function CalcDailyAllocation(capacity As Double, remaining As Double, isMicroTas
          ' Only allocate if capacity >= 0.1
          ' If allocated, it consumes 0.1 and we are done.
          If capacity >= 0.1 Then
-            dailyAlloc = 0.1
+            allocatedHours = 0.1
          End If
     Else
          ' Standard Logic (0.25 units)
@@ -194,11 +194,11 @@ Function CalcDailyAllocation(capacity As Double, remaining As Double, isMicroTas
          If maxUnits > 0 And neededUnits > 0 Then
             allocateUnits = neededUnits
             If allocateUnits > maxUnits Then allocateUnits = maxUnits
-            dailyAlloc = allocateUnits * 0.25
+            allocatedHours = allocateUnits * 0.25
          End If
     End If
     
-    CalcDailyAllocation = dailyAlloc
+    CalcDailyAllocation = allocatedHours
 End Function
 
 ' Refactor #4: Extract Level Finish Update Logic
@@ -244,8 +244,8 @@ Function BuildCapacityDict(assigneeDataFrame As Variant) As Object
 End Function
 
 ' Refactor #6: Extract Phase 1 (Scan Locked Rows)
-' 全タスクをスキャンし、「L」マーク（ロック）がついている場合は既存スケジュールを personUsage (実績Dict) に事前割り当てする
-Sub ScanLockedRows(taskCfg As TaskConfig, numRows As Long, numDays As Long, taskDataFrame As Variant, scheduleGrid As Variant, ByRef personUsage As Object)
+' 全タスクをスキャンし、「L」マーク（ロック）がついている場合は既存スケジュールを assigneeUsage (実績Dict) に事前割り当てする
+Sub ScanLockedRows(taskCfg As TaskConfig, numRows As Long, numDays As Long, taskDataFrame As Variant, scheduleGrid As Variant, ByRef assigneeUsage As Object)
     Dim taskRow As Long
     Dim dayIdx As Long
     Dim assigneeName As String
@@ -258,14 +258,14 @@ Sub ScanLockedRows(taskCfg As TaskConfig, numRows As Long, numDays As Long, task
         
         If assigneeName <> "" Then
             ' Initialize empty array for person if not exists
-            If Not personUsage.Exists(assigneeName) Then
+            If Not assigneeUsage.Exists(assigneeName) Then
                 ReDim newAllocArray(1 To numDays) As Double
-                personUsage.Add assigneeName, newAllocArray
+                assigneeUsage.Add assigneeName, newAllocArray
             End If
             
             ' If row is locked, scan its grid and pre-allocate usage
             If UCase(Trim(taskDataFrame(taskRow, taskCfg.COL_LOCK))) = taskCfg.STR_LOCK_MARK Then
-                newAllocArray = personUsage(assigneeName)
+                newAllocArray = assigneeUsage(assigneeName)
                 For dayIdx = 1 To numDays
                     cellVal = scheduleGrid(taskRow, dayIdx)
                     existingAlloc = 0
@@ -277,7 +277,7 @@ Sub ScanLockedRows(taskCfg As TaskConfig, numRows As Long, numDays As Long, task
                         newAllocArray(dayIdx) = newAllocArray(dayIdx) + existingAlloc
                     End If
                 Next dayIdx
-                personUsage(assigneeName) = newAllocArray
+                assigneeUsage(assigneeName) = newAllocArray
             End If
         End If
     Next taskRow
@@ -317,11 +317,11 @@ End Sub
 
 ' Refactor #9: Extract ScheduleUnlockedTask
 ' 個別のアンロック済みタスクスケジュール（日別の工数割り当てなど）処理を実行する
-Sub ScheduleUnlockedTask(taskCfg As TaskConfig, calCfg As CalendarConfig, ByVal taskRow As Long, ByVal numDays As Long, ByVal baseStartIdx As Long, ByVal taskDataFrame As Variant, ByVal holidayData As Variant, ByVal capacityLimits As Object, ByRef scheduleGrid As Variant, ByRef personUsage As Object, ByRef taskFinishIdx As Long, ByRef taskFinishAlloc As Double)
+Sub ScheduleUnlockedTask(taskCfg As TaskConfig, calCfg As CalendarConfig, ByVal taskRow As Long, ByVal numDays As Long, ByVal baseStartIdx As Long, ByVal taskDataFrame As Variant, ByVal holidayData As Variant, ByVal capacityLimits As Object, ByRef scheduleGrid As Variant, ByRef assigneeUsage As Object, ByRef taskFinishIdx As Long, ByRef taskFinishAlloc As Double)
     Dim duration As Double
     Dim assigneeName As String
     Dim remaining As Double
-    Dim dailyAlloc As Double
+    Dim allocatedHours As Double
     Dim capacity As Double
     Dim maxDailyLoad As Double
     Dim isHoliday As Boolean
@@ -340,16 +340,16 @@ Sub ScheduleUnlockedTask(taskCfg As TaskConfig, calCfg As CalendarConfig, ByVal 
     Call ClearTaskGridRow(taskRow, numDays, scheduleGrid)
     
     If assigneeName <> "" And duration > 0 Then
-        If Not personUsage.Exists(assigneeName) Then
+        If Not assigneeUsage.Exists(assigneeName) Then
             ReDim newAllocArray(1 To numDays) As Double
-            personUsage.Add assigneeName, newAllocArray
+            assigneeUsage.Add assigneeName, newAllocArray
         End If
         
         ' Get Max Daily Load for Person
         maxDailyLoad = GetMaxDailyLoad(assigneeName, capacityLimits)
         
         remaining = duration
-        newAllocArray = personUsage(assigneeName)
+        newAllocArray = assigneeUsage(assigneeName)
         
         taskStartIdx = baseStartIdx
         
@@ -378,21 +378,21 @@ Sub ScheduleUnlockedTask(taskCfg As TaskConfig, calCfg As CalendarConfig, ByVal 
                 capacity = maxDailyLoad - newAllocArray(dayIdx)
                 If capacity < 0 Then capacity = 0
                 
-                dailyAlloc = CalcDailyAllocation(capacity, remaining, isMicroTask)
+                allocatedHours = CalcDailyAllocation(capacity, remaining, isMicroTask)
                     
-                If dailyAlloc > 0 Then
-                    scheduleGrid(taskRow, dayIdx) = dailyAlloc
-                    newAllocArray(dayIdx) = newAllocArray(dayIdx) + dailyAlloc
-                    remaining = remaining - dailyAlloc
+                If allocatedHours > 0 Then
+                    scheduleGrid(taskRow, dayIdx) = allocatedHours
+                    newAllocArray(dayIdx) = newAllocArray(dayIdx) + allocatedHours
+                    remaining = remaining - allocatedHours
                     
                     ' Update row finish tracking
                     taskFinishIdx = dayIdx
-                    taskFinishAlloc = dailyAlloc
+                    taskFinishAlloc = allocatedHours
                 End If
             End If
         Next dayIdx
         
-        personUsage(assigneeName) = newAllocArray
+        assigneeUsage(assigneeName) = newAllocArray
     End If
 End Sub
 
@@ -407,9 +407,9 @@ Function TestFindLockedTaskFinish(taskRow As Long, numDays As Long, ByRef schedu
     TestFindLockedTaskFinish = fIdx & "|" & fAlloc
 End Function
 
-Function TestScheduleUnlockedTask(taskCfg As TaskConfig, calCfg As CalendarConfig, taskRow As Long, numDays As Long, baseStartIdx As Long, taskDataFrame As Variant, holidayData As Variant, capacityLimits As Object, ByRef scheduleGrid As Variant, ByRef personUsage As Object) As String
+Function TestScheduleUnlockedTask(taskCfg As TaskConfig, calCfg As CalendarConfig, taskRow As Long, numDays As Long, baseStartIdx As Long, taskDataFrame As Variant, holidayData As Variant, capacityLimits As Object, ByRef scheduleGrid As Variant, ByRef assigneeUsage As Object) As String
     Dim fIdx As Long
     Dim fAlloc As Double
-    Call ScheduleUnlockedTask(taskCfg, calCfg, taskRow, numDays, baseStartIdx, taskDataFrame, holidayData, capacityLimits, scheduleGrid, personUsage, fIdx, fAlloc)
+    Call ScheduleUnlockedTask(taskCfg, calCfg, taskRow, numDays, baseStartIdx, taskDataFrame, holidayData, capacityLimits, scheduleGrid, assigneeUsage, fIdx, fAlloc)
     TestScheduleUnlockedTask = fIdx & "|" & fAlloc
 End Function

@@ -37,6 +37,7 @@ import {
     OnGoToSubStatement,
     LSetStatement,
     RSetStatement,
+    ErrorStatement,
     Parser,
 } from './parser';
 import { Lexer, TokenType } from './lexer';
@@ -243,7 +244,7 @@ export class Evaluator {
                 this.number = num;
                 this.source = src || '';
                 this.description = desc || '';
-                throw new Error(desc || `VBA Error ${num}`);
+                throw { type: 'VbaError', number: num, message: desc || `VBA Error ${num}` };
             }
         });
     }
@@ -448,6 +449,9 @@ export class Evaluator {
                 break;
             case 'RSetStatement':
                 this.evaluateRSetStatement(stmt as RSetStatement);
+                break;
+            case 'ErrorStatement':
+                this.evaluateErrorStatement(stmt as ErrorStatement);
                 break;
             default:
                 throw new Error(`Execution error: Unknown statement type ${stmt.type}`);
@@ -695,6 +699,16 @@ export class Evaluator {
         }
     }
 
+    private evaluateErrorStatement(stmt: ErrorStatement) {
+        const errNum = this.evaluateExpression(stmt.errorNumber);
+        const errObj = this.env.get('err');
+        if (errObj) {
+            errObj.raise(errNum);
+        } else {
+            throw new Error(`VBA Error ${errNum}`);
+        }
+    }
+
     private evaluateAssignmentStatement(stmt: AssignmentStatement) {
         const val = this.evaluateExpression(stmt.right);
 
@@ -905,8 +919,13 @@ export class Evaluator {
                         // Populate Err object
                         const errObj = this.env.get('err');
                         if (errObj) {
-                            errObj.number = 1000;
-                            errObj.description = e.message || String(e);
+                            if (e && e.type === 'VbaError') {
+                                errObj.number = e.number;
+                                errObj.description = e.message;
+                            } else {
+                                errObj.number = 1000;
+                                errObj.description = e.message || String(e);
+                            }
                         }
                         const resumeIndex = i + 1;
                         const savedHandler = this.errorHandlerLabel;

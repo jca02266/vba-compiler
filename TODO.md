@@ -55,7 +55,7 @@
 |------|------|--------|
 | ✅ | On Error Statement（GoTo / Resume Next / GoTo 0） | §5.4.4.1 |
 | ✅ | Resume Statement | §5.4.4.2 |
-| ❌ | Error Statement（エラー番号の発生） | §5.4.4.3 |
+| ✅ | Error Statement（エラー番号の発生） | §5.4.4.3 |
 
 ## 第5章：ファイル操作ステートメント (§5.4.5)
 

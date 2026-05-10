@@ -161,6 +161,11 @@ export interface ReDimStatement extends Statement {
     bounds: Expression[]; // Multi-dimensional bounds (e.g. 1 To numDays)
 }
 
+export interface ErrorStatement extends Statement {
+    type: 'ErrorStatement';
+    errorNumber: Expression;
+}
+
 export interface ExitStatement extends Statement {
     type: 'ExitStatement';
     exitType: 'For' | 'Do' | 'Sub' | 'Function' | 'Property';
@@ -378,6 +383,8 @@ export class Parser {
             } else {
                 return this.parseOnGoToSubStatement();
             }
+        } else if (token.type === TokenType.KeywordError) {
+            return this.parseErrorStatement();
         } else if (token.type === TokenType.KeywordGoSub) {
             return this.parseGoSubStatement();
         } else if (token.type === TokenType.KeywordReturn) {
@@ -1426,5 +1433,11 @@ export class Parser {
         }
         const right = this.parseExpression();
         return { type: 'RSetStatement', left, right };
+    }
+
+    private parseErrorStatement(): ErrorStatement {
+        this.advance(); // 'Error'
+        const errorNumber = this.parseExpression();
+        return { type: 'ErrorStatement', errorNumber };
     }
 }

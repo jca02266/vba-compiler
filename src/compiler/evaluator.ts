@@ -303,7 +303,27 @@ export class Evaluator {
             if (isNaN(d.getTime())) throw new Error(`Execution error: Type mismatch: '${val}'`);
             return new VbaDate(toVbaDate(d));
         });
-        this.env.set('clng', (val: any) => Math.round(parseFloat(val)) || 0);
+        this.env.set('clng', (val: any) => {
+            const n = this.vbaRound(parseFloat(val) || 0);
+            if (n < -2147483648 || n > 2147483647) this.throwVbaError(6, "Overflow");
+            return n;
+        });
+        this.env.set('cbyte', (val: any) => {
+            let num: number;
+            if (val instanceof VbaBoolean) {
+                num = val.value === -1 ? 255 : 0;
+            } else if (typeof val === 'string') {
+                num = parseFloat(val);
+                if (isNaN(num)) this.throwVbaError(13, "Type mismatch");
+                num = this.vbaRound(num);
+            } else if (typeof val === 'number') {
+                num = this.vbaRound(val);
+            } else {
+                num = this.vbaRound(Number(val));
+            }
+            if (num < 0 || num > 255) this.throwVbaError(6, "Overflow");
+            return num;
+        });
         this.env.set('int', (val: any) => Math.floor(parseFloat(val)) || 0);
         this.env.set('ucase', (val: any) => val === vbaNull ? vbaNull : val === vbaEmpty ? "" : String(val).toUpperCase());
         this.env.set('lcase', (val: any) => val === vbaNull ? vbaNull : val === vbaEmpty ? "" : String(val).toLowerCase());
@@ -394,7 +414,11 @@ export class Evaluator {
         });
         this.env.set('replace', (s: any, find: any, repl: any) => String(s || '').split(String(find || '')).join(String(repl || '')));
 
-        this.env.set('cint', (val: any) => Math.round(parseFloat(val)) || 0);
+        this.env.set('cint', (val: any) => {
+            const n = this.vbaRound(parseFloat(val) || 0);
+            if (n < -32768 || n > 32767) this.throwVbaError(6, "Overflow");
+            return n;
+        });
         this.env.set('cstr', (val: any) => String(val === null ? '' : val));
         this.env.set('cbool', (val: any) => this.isTrue(val) ? vbaTrue : vbaFalse);
         this.env.set('fix', (val: any) => val > 0 ? Math.floor(val) : Math.ceil(val));
@@ -1177,14 +1201,30 @@ export class Evaluator {
 
     private flattenArray(arr: any[]): any[] {
         const result: any[] = [];
-        const walk = (a: any[]) => {
-            for (const item of a) {
-                if (Array.isArray(item)) walk(item);
-                else result.push(item);
+        for (const item of arr) {
+            if (Array.isArray(item)) {
+                result.push(...this.flattenArray(item));
+            } else {
+                result.push(item);
             }
-        };
-        walk(arr);
+        }
         return result;
+    }
+
+    private vbaRound(val: number): number {
+        const i = Math.floor(val);
+        const f = val - i;
+        if (f < 0.5) return i;
+        if (f > 0.5) return i + 1;
+        // Midpoint: round to even
+        return (i % 2 === 0) ? i : i + 1;
+    }
+
+    private throwVbaError(number: number, message: string) {
+        const err: any = new Error(message);
+        err.type = 'VbaError';
+        err.number = number;
+        throw err;
     }
 
     private evaluateIfStatement(stmt: IfStatement) {
@@ -1883,6 +1923,17 @@ export class Evaluator {
 
                 if (this.errorHandlingMode === 'ResumeNext') {
                     this.lastErrorIndex = i;
+                    // Populate Err object
+                    const errObj = this.env.get('err');
+                    if (errObj) {
+                        if (e && e.type === 'VbaError') {
+                            errObj.number = e.number;
+                            errObj.description = e.message;
+                        } else {
+                            errObj.number = 1000;
+                            errObj.description = e.message || String(e);
+                        }
+                    }
                     i++;
                     continue;
                 } else if (this.errorHandlingMode === 'Label' && this.errorHandlerLabel) {

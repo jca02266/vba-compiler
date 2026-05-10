@@ -18,6 +18,9 @@ export enum TokenType {
     KeywordStop,
     KeywordSub,
     KeywordFunction,
+    KeywordProperty,
+    KeywordGet,
+    KeywordLet,
     KeywordDim,
     KeywordAs,
     KeywordNew,
@@ -291,6 +294,9 @@ export class Lexer {
                 if (lowerId === 'stop') return { type: TokenType.KeywordStop, value: idStr, line: this.line };
                 if (lowerId === 'sub') return { type: TokenType.KeywordSub, value: idStr, line: this.line };
                 if (lowerId === 'function') return { type: TokenType.KeywordFunction, value: idStr, line: this.line };
+                if (lowerId === 'property') return { type: TokenType.KeywordProperty, value: idStr, line: this.line };
+                if (lowerId === 'get') return { type: TokenType.KeywordGet, value: idStr, line: this.line };
+                if (lowerId === 'let') return { type: TokenType.KeywordLet, value: idStr, line: this.line };
                 if (lowerId === 'dim') return { type: TokenType.KeywordDim, value: idStr, line: this.line };
                 if (lowerId === 'as') return { type: TokenType.KeywordAs, value: idStr, line: this.line };
                 if (lowerId === 'new') return { type: TokenType.KeywordNew, value: idStr, line: this.line };

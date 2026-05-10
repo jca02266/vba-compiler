@@ -30,7 +30,7 @@
 | ✅ | On…GoSub Statement | §5.4.2.16 |
 | ✅ | Exit Sub Statement | §5.4.2.17 |
 | ✅ | Exit Function Statement | §5.4.2.18 |
-| ❌ | Exit Property Statement | §5.4.2.19 |
+| ✅ | Exit Property Statement | §5.4.2.19 |
 | ❌ | RaiseEvent Statement | §5.4.2.20 |
 | ✅ | With Statement (`With...End With`) | §5.4.2.21 |
 | ✅ | End Statement（プログラム終了） | §5.4.2.22 |

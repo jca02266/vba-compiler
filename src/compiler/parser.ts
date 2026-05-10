@@ -100,6 +100,7 @@ export interface Parameter extends ASTNode {
 export interface ProcedureDeclaration extends Statement {
     type: 'ProcedureDeclaration';
     isFunction: boolean;
+    isProperty: boolean;
     name: Identifier;
     parameters: Parameter[];
     body: Statement[];
@@ -150,7 +151,7 @@ export interface ReDimStatement extends Statement {
 
 export interface ExitStatement extends Statement {
     type: 'ExitStatement';
-    exitType: 'For' | 'Do' | 'Sub' | 'Function';
+    exitType: 'For' | 'Do' | 'Sub' | 'Function' | 'Property';
 }
 
 export interface LabelStatement extends Statement {
@@ -275,7 +276,8 @@ export class Parser {
             next.type === TokenType.KeywordIf ||
             next.type === TokenType.KeywordSelect ||
             next.type === TokenType.KeywordWith ||
-            next.type === TokenType.KeywordType
+            next.type === TokenType.KeywordType ||
+            next.type === TokenType.KeywordProperty
         );
     }
 
@@ -325,7 +327,7 @@ export class Parser {
             return this.parseDoWhileStatement();
         } else if (token.type === TokenType.KeywordWhile) {
             return this.parseWhileStatement();
-        } else if (token.type === TokenType.KeywordSub || token.type === TokenType.KeywordFunction) {
+        } else if (token.type === TokenType.KeywordSub || token.type === TokenType.KeywordFunction || token.type === TokenType.KeywordProperty) {
             return this.parseProcedureDeclaration();
         } else if (
             token.type === TokenType.KeywordPublic ||
@@ -335,7 +337,7 @@ export class Parser {
             const scopeToken = this.advance();
             const scope = scopeToken.value.toLowerCase() as 'public' | 'private' | 'friend';
             const next = this.peek();
-            if (next.type === TokenType.KeywordSub || next.type === TokenType.KeywordFunction) {
+            if (next.type === TokenType.KeywordSub || next.type === TokenType.KeywordFunction || next.type === TokenType.KeywordProperty) {
                 return this.parseProcedureDeclaration(scope);
             }
             // Public/Private on Dim/Const — consume scope keyword and parse normally
@@ -463,7 +465,20 @@ export class Parser {
 
     private parseProcedureDeclaration(scope?: 'public' | 'private' | 'friend'): ProcedureDeclaration {
         const isFunction = this.peek().type === TokenType.KeywordFunction;
-        this.advance(); // consume Sub or Function
+        const isProperty = this.peek().type === TokenType.KeywordProperty;
+        this.advance(); // consume Sub, Function, or Property
+
+        if (isProperty) {
+            // consume Get, Let, or Set
+            const typeToken = this.advance();
+            if (
+                typeToken.type !== TokenType.KeywordGet &&
+                typeToken.type !== TokenType.KeywordLet &&
+                typeToken.type !== TokenType.KeywordSet
+            ) {
+                throw new Error(`Parse error: Expected 'Get', 'Let', or 'Set' after 'Property' at line ${typeToken.line}`);
+            }
+        }
 
         const idToken = this.advance();
         if (idToken.type !== TokenType.Identifier) {
@@ -551,14 +566,15 @@ export class Parser {
 
         if (this.peek().type === TokenType.KeywordEnd) {
             this.advance(); // consume 'End'
-            const expectedEndStr = isFunction ? 'Function' : 'Sub';
+            let expectedEndStr = isFunction ? 'Function' : 'Sub';
+            if (isProperty) expectedEndStr = 'Property';
             const endToken = this.advance();
             if (endToken.value.toLowerCase() !== expectedEndStr.toLowerCase()) {
                 throw new Error(`Parse error: Expected '${expectedEndStr}' after 'End' at line ${endToken.line}`);
             }
         }
 
-        return { type: 'ProcedureDeclaration', isFunction, name, parameters, body, scope };
+        return { type: 'ProcedureDeclaration', isFunction, isProperty, name, parameters, body, scope };
     }
 
     private parseDimStatement(): VariableDeclaration {
@@ -650,7 +666,7 @@ export class Parser {
     private parseExitStatement(): ExitStatement {
         this.advance(); // 'Exit'
         const typeToken = this.advance();
-        let exitType: 'For' | 'Do' | 'Sub' | 'Function';
+        let exitType: 'For' | 'Do' | 'Sub' | 'Function' | 'Property';
 
         if (typeToken.type === TokenType.KeywordFor) {
             exitType = 'For';
@@ -660,10 +676,11 @@ export class Parser {
             exitType = 'Sub';
         } else if (typeToken.type === TokenType.KeywordFunction) {
             exitType = 'Function';
+        } else if (typeToken.type === TokenType.KeywordProperty) {
+            exitType = 'Property';
         } else {
-            throw new Error(`Parse error: Unexpected token after Exit '${typeToken.value}' at line ${typeToken.line} `);
+            throw new Error(`Parse error: Expected 'For', 'Do', 'Sub', 'Function', or 'Property' after 'Exit' at line ${typeToken.line}`);
         }
-
         return { type: 'ExitStatement', exitType };
     }
 

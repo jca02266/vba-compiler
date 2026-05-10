@@ -256,7 +256,11 @@ export class Evaluator {
             this.executeStatements(proc.body, 0);
         } catch (e: any) {
             if (e && e.type === 'Exit') {
-                if ((e.target === 'Function' && proc.isFunction) || (e.target === 'Sub' && !proc.isFunction)) {
+                if (
+                    (e.target === 'Function' && proc.isFunction) || 
+                    (e.target === 'Sub' && !proc.isFunction && !proc.isProperty) ||
+                    (e.target === 'Property' && proc.isProperty)
+                ) {
                     // Valid exit, caught and swallowed
                 } else {
                     throw e; // Unhandled exit type
@@ -272,8 +276,8 @@ export class Evaluator {
             this.executingModuleName = previousExecutingModule;
         }
 
-        // Return the function value if it was a function
-        if (proc.isFunction) {
+        // Return the function or property value
+        if (proc.isFunction || proc.isProperty) {
             return localEnv.get(procName);
         }
         return EmptyVBA;

@@ -38,6 +38,8 @@ import {
     LSetStatement,
     RSetStatement,
     ErrorStatement,
+    ClassDeclaration,
+    NewExpression,
     Parser,
 } from './parser';
 import { Lexer, TokenType } from './lexer';
@@ -164,6 +166,7 @@ export class Evaluator {
     private staticVarStore: Map<string, any> = new Map(); // persistent store for Static variables
     private currentProcIsStatic: boolean = false;
     private staticVarsInCurrentProc: Set<string> = new Set();
+    private classDefinitions: Map<string, ClassDeclaration> = new Map();
 
     constructor(onPrint: PrintCallback) {
         this.env = new Environment();
@@ -232,6 +235,7 @@ export class Evaluator {
             if (Array.isArray(val)) return 'Variant()';
             if (val.__isVbaDict__) return 'Dictionary';
             if (val.__isVbaCollection__) return 'Collection';
+            if (val.__vbaClass__) return val.__className__;
             if (val.__vbaTypeName__) return val.__vbaTypeName__;
             if (typeof val === 'object') return 'Object';
             return 'Unknown';
@@ -699,6 +703,9 @@ export class Evaluator {
             case 'TypeDeclaration':
                 this.evaluateTypeDeclaration(stmt as TypeDeclaration);
                 break;
+            case 'ClassDeclaration':
+                this.evaluateClassDeclaration(stmt as ClassDeclaration);
+                break;
             case 'LabelStatement':
                 // No-op for now. Label execution just passes through.
                 break;
@@ -1063,11 +1070,21 @@ export class Evaluator {
             }
         } else if (stmt.left.type === 'MemberExpression') {
             const member = stmt.left as MemberExpression;
-            // E.g. dict(key) = val -> wait, Dictionary default property is dict.Item(key) = val
-            // But let's handle object property assignment Application.ScreenUpdating = false
             const obj = this.evaluateExpression(member.object);
             const propName = member.property.name.toLowerCase();
-            if (obj && typeof obj === 'object') {
+            if (obj && obj.__vbaClass__) {
+                // VBA class instance: check for Property Let/Set, then fallback to field assignment
+                const classDef = obj.__classDef__ as ClassDeclaration;
+                const instanceEnv = obj.__instanceEnv__ as Environment;
+                const setter = classDef.procedures.find(
+                    p => p.isProperty && (p.propertyType === 'let' || p.propertyType === 'set') && p.name.name.toLowerCase() === propName
+                );
+                if (setter) {
+                    this.callClassMethod(obj, setter, [val]);
+                } else {
+                    instanceEnv.set(propName, val);
+                }
+            } else if (obj && typeof obj === 'object') {
                 obj[propName] = val;
             } else {
                 throw new Error(`Execution error: Cannot assign property '${propName}' of undefined or primitive`);
@@ -1118,6 +1135,8 @@ export class Evaluator {
                     count: function () { return this.items.length; },
                     item: function (index: number) { return this.items[index - 1]; }
                 };
+            } else if (decl.isNew && decl.objectType && this.classDefinitions.has(decl.objectType.toLowerCase())) {
+                initialValue = this.instantiateClass(decl.objectType);
             } else if (decl.objectType) {
                 // Check if it's a user-defined Type
                 const typeMembers = this.env.getType(decl.objectType);
@@ -1144,6 +1163,105 @@ export class Evaluator {
 
     private evaluateTypeDeclaration(stmt: TypeDeclaration) {
         this.env.setType(stmt.name, stmt.members);
+    }
+
+    private evaluateClassDeclaration(stmt: ClassDeclaration) {
+        this.classDefinitions.set(stmt.name.toLowerCase(), stmt);
+    }
+
+    private instantiateClass(className: string): any {
+        const classDef = this.classDefinitions.get(className.toLowerCase());
+        if (!classDef) {
+            throw new Error(`Execution error: Class '${className}' not found`);
+        }
+
+        // Create instance environment rooted at the global env
+        const instanceEnv = new Environment(this.env);
+
+        // Initialize public/private fields with default values
+        for (const fieldDecl of classDef.fields) {
+            for (const decl of fieldDecl.declarations) {
+                const fieldKey = decl.name.name.toLowerCase();
+                let defaultVal: any = vbaEmpty;
+                const mt = (decl.objectType || '').toLowerCase();
+                if (mt === 'string') defaultVal = '';
+                else if (mt === 'integer' || mt === 'long' || mt === 'double' || mt === 'single') defaultVal = 0;
+                instanceEnv.setLocally(decl.name.name, defaultVal);
+            }
+        }
+
+        const instance: any = {
+            __vbaClass__: true,
+            __className__: classDef.name,
+            __classDef__: classDef,
+            __instanceEnv__: instanceEnv,
+        };
+
+        // Set Me in instance env pointing to the instance itself
+        instanceEnv.setLocally('Me', instance);
+
+        // Call Class_Initialize if defined
+        const initProc = classDef.procedures.find(p => p.name.name.toLowerCase() === 'class_initialize');
+        if (initProc) {
+            this.callClassMethod(instance, initProc, []);
+        }
+
+        return instance;
+    }
+
+    private callClassMethod(instance: any, proc: ProcedureDeclaration, args: any[]): any {
+        const instanceEnv = instance.__instanceEnv__ as Environment;
+        const localEnv = new Environment(instanceEnv);
+
+        // Map arguments to parameters
+        for (let i = 0; i < proc.parameters.length; i++) {
+            const paramName = proc.parameters[i].name;
+            const argValue = i < args.length ? args[i] : vbaEmpty;
+            localEnv.setLocally(paramName, argValue);
+        }
+
+        const previousEnv = this.env;
+        const previousProcBody = this.currentProcBody;
+        const previousProcedureName = this.currentProcedureName;
+        const previousProcedureType = this.currentProcedureType;
+        const previousProcIsStatic = this.currentProcIsStatic;
+        const previousStaticVars = this.staticVarsInCurrentProc;
+        this.env = localEnv;
+        this.currentProcBody = proc.body;
+        this.currentProcedureName = proc.name.name;
+        this.currentProcedureType = proc.propertyType || (proc.isFunction ? 'function' : 'sub');
+        this.currentProcIsStatic = false;
+        this.staticVarsInCurrentProc = new Set();
+
+        try {
+            this.executeStatements(proc.body, 0);
+        } catch (e: any) {
+            if (e && e.type === 'Exit') {
+                if (
+                    (e.target === 'Function' && proc.isFunction) ||
+                    (e.target === 'Sub' && !proc.isFunction && !proc.isProperty) ||
+                    (e.target === 'Property' && proc.isProperty)
+                ) {
+                    // valid exit
+                } else {
+                    throw e;
+                }
+            } else {
+                throw e;
+            }
+        } finally {
+            this.env = previousEnv;
+            this.currentProcBody = previousProcBody;
+            this.currentProcedureName = previousProcedureName;
+            this.currentProcedureType = previousProcedureType;
+            this.currentProcIsStatic = previousProcIsStatic;
+            this.staticVarsInCurrentProc = previousStaticVars;
+        }
+
+        if (proc.isFunction || proc.isProperty) {
+            return localEnv.get(proc.name.name.toLowerCase());
+        }
+        return vbaEmpty;
     }
 
     private evaluateEnumDeclaration(stmt: EnumDeclaration) {
@@ -1340,6 +1458,8 @@ export class Evaluator {
                 return this.evaluateBinaryExpression(expr as BinaryExpression);
             case 'ImplicitWithObjectExpression':
                 return this.evaluateImplicitWithObjectExpression(expr as ImplicitWithObjectExpression);
+            case 'NewExpression':
+                return this.instantiateClass((expr as NewExpression).className);
             default:
                 throw new Error(`Execution error: Unknown expression type ${expr.type}`);
         }
@@ -1467,6 +1587,17 @@ export class Evaluator {
 
             const methodNameLower = methodNameOriginal.toLowerCase();
 
+            // VBA class instance method call
+            if (obj && obj.__vbaClass__) {
+                const classDef = obj.__classDef__ as ClassDeclaration;
+                const proc = classDef.procedures.find(p => p.name.name.toLowerCase() === methodNameLower);
+                if (proc) {
+                    const argsVals = expr.args.map(a => this.evaluateExpression(a));
+                    return this.callClassMethod(obj, proc, argsVals);
+                }
+                throw new Error(`Execution error: Class '${obj.__className__}' has no method '${methodNameOriginal}'`);
+            }
+
             if (obj) {
                 // Try case-insensitive lookup first, then fallback to original casing
                 let targetMethod = obj[methodNameLower];
@@ -1564,6 +1695,31 @@ export class Evaluator {
     private evaluateMemberExpression(expr: MemberExpression): any {
         const obj = this.evaluateExpression(expr.object);
         const propName = expr.property.name.toLowerCase();
+
+        // VBA class instance: look up field in instance environment or invoke Property Get
+        if (obj && obj.__vbaClass__) {
+            const classDef = obj.__classDef__ as ClassDeclaration;
+            const instanceEnv = obj.__instanceEnv__ as Environment;
+
+            // Check for Property Get
+            const getter = classDef.procedures.find(
+                p => p.isProperty && p.propertyType === 'get' && p.name.name.toLowerCase() === propName
+            );
+            if (getter) {
+                return this.callClassMethod(obj, getter, []);
+            }
+
+            // No-arg Sub/Function access without parens (rare, treat as property-like call)
+            const method = classDef.procedures.find(
+                p => !p.isProperty && p.name.name.toLowerCase() === propName && p.parameters.length === 0 && p.isFunction
+            );
+            if (method) {
+                return this.callClassMethod(obj, method, []);
+            }
+
+            // Field access
+            return instanceEnv.get(propName);
+        }
 
         if (obj && propName in obj) {
             const val = obj[propName];

@@ -202,6 +202,13 @@ export interface TypeDeclaration extends Statement {
     members: TypeMember[];
 }
 
+export interface ClassDeclaration extends Statement {
+    type: 'ClassDeclaration';
+    name: string;
+    fields: VariableDeclaration[];
+    procedures: ProcedureDeclaration[];
+}
+
 export type RangeClause =
     | { kind: 'expression'; value: Expression }
     | { kind: 'to'; start: Expression; end: Expression }
@@ -255,6 +262,11 @@ export interface TypeOfIsExpression extends Expression {
     type: 'TypeOfIsExpression';
     expression: Expression;
     typeName: string;
+}
+
+export interface NewExpression extends Expression {
+    type: 'NewExpression';
+    className: string;
 }
 
 export interface Identifier extends Expression {
@@ -322,7 +334,8 @@ export class Parser {
             next.type === TokenType.KeywordWith ||
             next.type === TokenType.KeywordType ||
             next.type === TokenType.KeywordEnum ||
-            next.type === TokenType.KeywordProperty
+            next.type === TokenType.KeywordProperty ||
+            next.type === TokenType.KeywordClass
         );
     }
 
@@ -456,6 +469,8 @@ export class Parser {
             return this.parseTypeDeclaration();
         } else if (token.type === TokenType.KeywordEnum) {
             return this.parseEnumDeclaration();
+        } else if (token.type === TokenType.KeywordClass) {
+            return this.parseClassDeclaration();
         } else if (token.type === TokenType.KeywordCall) {
             this.advance(); // consume 'Call'
             const expr = this.parsePrimary();
@@ -885,6 +900,76 @@ export class Parser {
         }
 
         return { type: 'EnumDeclaration', name, members } as EnumDeclaration;
+    }
+
+    private parseClassDeclaration(): ClassDeclaration {
+        this.advance(); // consume 'Class'
+        const nameToken = this.advance();
+        if (nameToken.type !== TokenType.Identifier) {
+            throw new Error(`Parse error: Expected class name after 'Class' at line ${nameToken.line}`);
+        }
+        const className = nameToken.value;
+        const fields: VariableDeclaration[] = [];
+        const procedures: ProcedureDeclaration[] = [];
+
+        this.skipNewlines();
+
+        while (this.peek().type !== TokenType.EOF) {
+            if (this.peek().type === TokenType.KeywordEnd && this.peek(1).type === TokenType.KeywordClass) {
+                break;
+            }
+            const tok = this.peek();
+
+            // Skip blank lines
+            if (tok.type === TokenType.Newline) {
+                this.skipNewlines();
+                continue;
+            }
+
+            // Scope modifiers before fields/procedures
+            let scope: 'public' | 'private' | 'friend' | undefined;
+            if (tok.type === TokenType.KeywordPublic || tok.type === TokenType.KeywordPrivate || tok.type === TokenType.KeywordFriend) {
+                scope = tok.value.toLowerCase() as 'public' | 'private' | 'friend';
+                this.advance(); // consume scope keyword
+            }
+
+            const inner = this.peek();
+            if (inner.type === TokenType.KeywordSub || inner.type === TokenType.KeywordFunction || inner.type === TokenType.KeywordProperty) {
+                const proc = this.parseProcedureDeclaration(scope);
+                proc.moduleName = className;
+                procedures.push(proc);
+            } else if (inner.type === TokenType.KeywordDim) {
+                this.advance(); // consume 'Dim'
+                const field = this.parseDimStatement(true) as VariableDeclaration; // true = keyword already consumed
+                field.scope = scope ?? 'public';
+                fields.push(field);
+            } else if (inner.type === TokenType.KeywordStatic) {
+                this.advance(); // consume 'Static'
+                const field = this.parseDimStatement(true) as VariableDeclaration;
+                field.isStatic = true;
+                field.scope = scope ?? 'public';
+                fields.push(field);
+            } else if (scope !== undefined && inner.type === TokenType.Identifier) {
+                // Public/Private Name As Type (no Dim keyword)
+                const field = this.parseDimStatement(true) as VariableDeclaration;
+                field.scope = scope;
+                fields.push(field);
+            } else {
+                // Skip unknown tokens gracefully
+                this.advance();
+            }
+            this.skipNewlines();
+        }
+
+        // Consume 'End Class'
+        if (this.peek().type === TokenType.KeywordEnd) {
+            this.advance();
+            if (!this.match(TokenType.KeywordClass)) {
+                throw new Error(`Parse error: Expected 'Class' after 'End' at line ${this.peek().line}`);
+            }
+        }
+
+        return { type: 'ClassDeclaration', name: className, fields, procedures } as ClassDeclaration;
     }
 
     private parseForStatement(): ForStatement | ForEachStatement {
@@ -1443,6 +1528,14 @@ export class Parser {
             expr = { type: 'Identifier', name: 'Nothing' } as Identifier;
         } else if (token.type === TokenType.KeywordNull) {
             expr = { type: 'Identifier', name: 'Null' } as Identifier;
+        } else if (token.type === TokenType.KeywordMe) {
+            expr = { type: 'Identifier', name: 'Me' } as Identifier;
+        } else if (token.type === TokenType.KeywordNew) {
+            const classNameToken = this.advance();
+            if (classNameToken.type !== TokenType.Identifier) {
+                throw new Error(`Parse error: Expected class name after 'New' at line ${classNameToken.line}`);
+            }
+            expr = { type: 'NewExpression', className: classNameToken.value } as NewExpression;
         } else if (token.type === TokenType.OperatorLParen) {
             expr = this.parseExpression();
             if (!this.match(TokenType.OperatorRParen)) {

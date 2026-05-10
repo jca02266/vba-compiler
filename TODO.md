@@ -88,7 +88,7 @@
 | ✅ | User Defined Type Declarations（`Type`） | §5.2.3.3 |
 | ✅ | Enum Declarations | §5.2.3.4 |
 | ❌ | External Procedure Declaration（`Declare`） | §5.2.3.5 |
-| ❌ | Class Module（OOP） | §5.2.4 |
+| ✅ | Class Module（OOP） | §5.2.4 |
 | ❌ | Implements Directive | §5.2.4.2 |
 | ❌ | Event Declaration | §5.2.4.3 |
 | ✅ | Option Explicit（パース済み、実行時は無視） | §5.2 |

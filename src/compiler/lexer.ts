@@ -68,6 +68,8 @@ export enum TokenType {
     KeywordImp,
     KeywordNull,
     KeywordStatic,
+    KeywordClass,
+    KeywordMe,
     OperatorPlus,
     OperatorMinus,
     OperatorMultiply,
@@ -359,6 +361,8 @@ export class Lexer {
                 if (lowerId === 'with') return { type: TokenType.KeywordWith, value: idStr, line: this.line };
                 if (lowerId === 'null') return { type: TokenType.KeywordNull, value: idStr, line: this.line };
                 if (lowerId === 'static') return { type: TokenType.KeywordStatic, value: idStr, line: this.line };
+                if (lowerId === 'class') return { type: TokenType.KeywordClass, value: idStr, line: this.line };
+                if (lowerId === 'me') return { type: TokenType.KeywordMe, value: idStr, line: this.line };
 
                 return { type: TokenType.Identifier, value: idStr, line: this.line };
             }

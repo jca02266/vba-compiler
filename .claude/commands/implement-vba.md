@@ -19,6 +19,15 @@ TODO.mdから優先度の高い未実装機能を1件選び、テスト作成・
 `spec/MS-VBAL.txt` から該当セクションを読み、構文ルール・動作仕様・エッジケースを把握する。
 仕様書の章番号はTODO.mdの「仕様書」列を参照する。
 
+**行番号の引き方**: `spec/MS-VBAL-index.txt` に節番号→行番号の対応表がある。
+grep で引いた行番号を使って `sed -n 'LINE,+100p' spec/MS-VBAL.txt` で本文を読む。
+
+```bash
+# 例: §5.2.4 を読む
+grep "^§5\.2\.4 " spec/MS-VBAL-index.txt   # → 行番号を取得
+sed -n '1956,+80p' spec/MS-VBAL.txt         # → その行から本文を読む
+```
+
 ### Step 4: テストを作成
 
 `tests/spec/` 配下に機能名に対応するテストファイルを作成する（例: `tests/spec/select-case.test.ts`）。

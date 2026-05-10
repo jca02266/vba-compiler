@@ -1,0 +1,62 @@
+import { Lexer } from '../../src/compiler/lexer';
+import { Parser } from '../../src/compiler/parser';
+import { Evaluator } from '../../src/compiler/evaluator';
+import { assert } from '../ts/test-runner';
+
+function evalExpr(expr: string): any {
+    const tokens = new Lexer(expr).tokenize();
+    const parser = new Parser(tokens);
+    const ast = (parser as any).parseExpression();
+    const ev = new Evaluator(() => {});
+    return (ev as any).evaluateExpression(ast);
+}
+
+// 1. String Functions
+{
+    assert.strictEqual(evalExpr('Len("Hello")'), 5, 'Len');
+    assert.strictEqual(evalExpr('Left("Hello", 2)'), 'He', 'Left');
+    assert.strictEqual(evalExpr('Right("Hello", 2)'), 'lo', 'Right');
+    assert.strictEqual(evalExpr('Mid("Hello", 2, 2)'), 'el', 'Mid(start, len)');
+    assert.strictEqual(evalExpr('Mid("Hello", 2)'), 'ello', 'Mid(start)');
+    assert.strictEqual(evalExpr('InStr("Hello", "e")'), 2, 'InStr found');
+    assert.strictEqual(evalExpr('InStr("Hello", "z")'), 0, 'InStr not found');
+    assert.strictEqual(evalExpr('LCase("HELLO")'), 'hello', 'LCase');
+    assert.strictEqual(evalExpr('Replace("Hello", "e", "a")'), 'Hallo', 'Replace');
+}
+
+// 2. Conversion Functions
+{
+    assert.strictEqual(evalExpr('CInt("123.5")'), 124, 'CInt (round)');
+    assert.strictEqual(evalExpr('CStr(123)'), '123', 'CStr');
+    assert.strictEqual(evalExpr('CBool(1)'), true, 'CBool(1)');
+    assert.strictEqual(evalExpr('CBool(0)'), false, 'CBool(0)');
+    assert.strictEqual(evalExpr('Fix(123.9)'), 123, 'Fix positive');
+    assert.strictEqual(evalExpr('Fix(-123.9)'), -123, 'Fix negative');
+}
+
+// 3. Math Functions
+{
+    assert.strictEqual(evalExpr('Abs(-10)'), 10, 'Abs');
+    assert.strictEqual(evalExpr('Round(123.456, 2)'), 123.46, 'Round(n, m)');
+    assert.strictEqual(evalExpr('Sqr(16)'), 4, 'Sqr');
+}
+
+// 4. Information Functions
+{
+    assert.strictEqual(evalExpr('IsNull(nothing)'), true, 'IsNull');
+}
+
+// 5. Array Functions
+{
+    // Need to test with an actual array
+    // Since evalExpr can't easily create an array in VBA expression yet (no Array() function)
+    // we'll skip LBound for now or add Array() first.
+}
+
+// 6. IIf
+{
+    assert.strictEqual(evalExpr('IIf(True, "A", "B")'), 'A', 'IIf True');
+    assert.strictEqual(evalExpr('IIf(False, "A", "B")'), 'B', 'IIf False');
+}
+
+console.log('\n✅ Built-in Functions: 全テスト通過');

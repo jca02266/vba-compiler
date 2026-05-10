@@ -159,6 +159,37 @@ export class Evaluator {
         this.env.set('int', (val: any) => Math.floor(parseFloat(val)) || 0);
         this.env.set('ucase', (val: any) => String(val || '').toUpperCase());
         this.env.set('trim', (val: any) => String(val || '').trim());
+        this.env.set('len', (val: any) => String(val || '').length);
+        this.env.set('left', (val: any, len: number) => String(val || '').substring(0, len));
+        this.env.set('right', (val: any, len: number) => {
+            const s = String(val || '');
+            return s.substring(s.length - len);
+        });
+        this.env.set('mid', (val: any, start: number, len?: number) => {
+            const s = String(val || '');
+            return len !== undefined ? s.substring(start - 1, start - 1 + len) : s.substring(start - 1);
+        });
+        this.env.set('instr', (s1: any, s2: any) => String(s1 || '').indexOf(String(s2 || '')) + 1);
+        this.env.set('lcase', (val: any) => String(val || '').toLowerCase());
+        this.env.set('replace', (s: any, find: any, repl: any) => String(s || '').split(String(find || '')).join(String(repl || '')));
+
+        this.env.set('cint', (val: any) => Math.round(parseFloat(val)) || 0);
+        this.env.set('cstr', (val: any) => String(val === null ? '' : val));
+        this.env.set('cbool', (val: any) => !!val);
+        this.env.set('fix', (val: any) => val > 0 ? Math.floor(val) : Math.ceil(val));
+
+        this.env.set('abs', (val: any) => Math.abs(val));
+        this.env.set('round', (val: any, digits: number = 0) => {
+            const factor = Math.pow(10, digits);
+            return Math.round(val * factor) / factor;
+        });
+        this.env.set('sqr', (val: any) => Math.sqrt(val));
+
+        this.env.set('isnull', (val: any) => val === null);
+        this.env.set('lbound', (arr: any[]) => 0); // VBA arrays in this implementation are 0-indexed JS arrays
+
+        this.env.set('iif', (cond: any, truePart: any, falsePart: any) => cond ? truePart : falsePart);
+
         this.env.set('ubound', (arr: any[], dimension?: number) => {
             if (Array.isArray(arr)) {
                 if (dimension === 2 && arr.length > 0 && Array.isArray(arr[0])) {

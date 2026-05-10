@@ -180,6 +180,11 @@ export class Evaluator {
         this.env.set('cstr', (val: any) => String(val === null ? '' : val));
         this.env.set('cbool', (val: any) => !!val);
         this.env.set('fix', (val: any) => val > 0 ? Math.floor(val) : Math.ceil(val));
+        this.env.set('val', (val: any) => {
+            const s = String(val || '').replace(/ /g, '');
+            const num = parseFloat(s);
+            return isNaN(num) ? 0 : num;
+        });
 
         this.env.set('abs', (val: any) => Math.abs(val));
         this.env.set('round', (val: any, digits: number = 0) => {

@@ -23,6 +23,13 @@ async function main() {
     assert.strictEqual(vbaTest.eval(`String(5, "*")`), "*****");
     assert.strictEqual(vbaTest.eval(`String(3, "ABC")`), "AAA"); // Only uses first char
 
+    console.log("[Test] Val");
+    assert.strictEqual(vbaTest.eval(`Val("123")`), 123);
+    assert.strictEqual(vbaTest.eval(`Val("123abc")`), 123);
+    assert.strictEqual(vbaTest.eval(`Val("  123 ")`), 123);
+    assert.strictEqual(vbaTest.eval(`Val("12 34")`), 1234); // Spaces ignored
+    assert.strictEqual(vbaTest.eval(`Val("abc")`), 0);
+
     console.log("--- All Built-in String Functions Tests passed! ---");
 }
 

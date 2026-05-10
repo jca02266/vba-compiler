@@ -22,7 +22,7 @@
 | ✅ | If Statement（複数行） | §5.4.2.8 |
 | ✅ | Single-line If Statement | §5.4.2.9 |
 | ✅ | Select Case Statement | §5.4.2.10 |
-| ❌ | Stop Statement | §5.4.2.11 |
+| ✅ | Stop Statement | §5.4.2.11 |
 | ✅ | GoTo Statement（汎用ラベルジャンプ） | §5.4.2.12 |
 | ❌ | On…GoTo Statement（複数ラベル選択） | §5.4.2.13 |
 | ❌ | GoSub Statement | §5.4.2.14 |
@@ -33,7 +33,7 @@
 | ❌ | Exit Property Statement | §5.4.2.19 |
 | ❌ | RaiseEvent Statement | §5.4.2.20 |
 | ✅ | With Statement (`With...End With`) | §5.4.2.21 |
-| ❌ | End Statement（プログラム終了） | §5.4.2.22 |
+| ✅ | End Statement（プログラム終了） | §5.4.2.22 |
 
 ## 第5章：データ操作ステートメント (§5.4.3)
 

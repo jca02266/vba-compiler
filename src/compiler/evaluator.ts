@@ -30,6 +30,8 @@ import {
     WithStatement,
     ImplicitWithObjectExpression,
     GoToStatement,
+    StopStatement,
+    EndStatement,
     Parser,
 } from './parser';
 import { Lexer, TokenType } from './lexer';
@@ -385,6 +387,12 @@ export class Evaluator {
             case 'GoToStatement':
                 this.evaluateGoToStatement(stmt as GoToStatement);
                 break;
+            case 'StopStatement':
+                this.evaluateStopStatement(stmt as StopStatement);
+                break;
+            case 'EndStatement':
+                this.evaluateEndStatement(stmt as EndStatement);
+                break;
             default:
                 throw new Error(`Execution error: Unknown statement type ${stmt.type}`);
         }
@@ -570,6 +578,15 @@ export class Evaluator {
 
     private evaluateGoToStatement(stmt: GoToStatement) {
         throw { type: 'GoTo', label: stmt.label };
+    }
+
+    private evaluateStopStatement(stmt: StopStatement) {
+        console.log('STOP Statement encountered');
+        // implementation-defined: just log for now
+    }
+
+    private evaluateEndStatement(stmt: EndStatement) {
+        throw { type: 'Terminate' };
     }
 
     private evaluateAssignmentStatement(stmt: AssignmentStatement) {

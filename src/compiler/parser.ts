@@ -10,6 +10,14 @@ export interface GoToStatement extends Statement {
     label: string;
 }
 
+export interface StopStatement extends Statement {
+    type: 'StopStatement';
+}
+
+export interface EndStatement extends Statement {
+    type: 'EndStatement';
+}
+
 export interface ASTNode {
     type: string;
 }
@@ -229,17 +237,30 @@ export class Parser {
         this.tokens = tokens;
     }
 
-    private peek(): Token {
-        if (this.pos >= this.tokens.length) {
+    private peek(offset: number = 0): Token {
+        if (this.pos + offset >= this.tokens.length) {
             return this.tokens[this.tokens.length - 1]; // EOF
         }
-        return this.tokens[this.pos];
+        return this.tokens[this.pos + offset];
     }
-
     private advance(): Token {
         const token = this.peek();
         this.pos++;
         return token;
+    }
+
+    private isAtEndTerminator(): boolean {
+        const token = this.peek();
+        if (token.type !== TokenType.KeywordEnd) return false;
+        const next = this.peek(1);
+        return (
+            next.type === TokenType.KeywordSub ||
+            next.type === TokenType.KeywordFunction ||
+            next.type === TokenType.KeywordIf ||
+            next.type === TokenType.KeywordSelect ||
+            next.type === TokenType.KeywordWith ||
+            next.type === TokenType.KeywordType
+        );
     }
 
     private match(expectedType: TokenType): boolean {
@@ -307,6 +328,15 @@ export class Parser {
             return this.parseDimStatement();
         } else if (token.type === TokenType.KeywordConst) {
             return this.parseConstDeclaration();
+        } else if (token.type === TokenType.KeywordStop) {
+            this.advance(); // consume 'Stop'
+            return { type: 'StopStatement' } as StopStatement;
+        } else if (token.type === TokenType.KeywordEnd) {
+            if (this.isAtEndTerminator()) {
+                return null;
+            }
+            this.advance(); // consume standalone 'End'
+            return { type: 'EndStatement' } as EndStatement;
         } else if (token.type === TokenType.KeywordGoTo) {
             return this.parseGoToStatement();
         } else if (token.type === TokenType.KeywordSet) {
@@ -487,7 +517,7 @@ export class Parser {
 
         this.skipNewlines();
         const body: Statement[] = [];
-        while (this.peek().type !== TokenType.KeywordEnd && this.peek().type !== TokenType.EOF) {
+        while (!this.isAtEndTerminator() && this.peek().type !== TokenType.EOF) {
             const stmt = this.parseStatement();
             if (stmt) body.push(stmt);
             this.skipNewlines();
@@ -842,7 +872,7 @@ export class Parser {
         this.skipNewlines();
 
         while (
-            this.peek().type !== TokenType.KeywordEnd &&
+            !this.isAtEndTerminator() &&
             this.peek().type !== TokenType.KeywordElse &&
             this.peek().type !== TokenType.KeywordElseIf &&
             this.peek().type !== TokenType.EOF
@@ -858,7 +888,7 @@ export class Parser {
             this.skipNewlines();
             alternate = [];
             while (
-                this.peek().type !== TokenType.KeywordEnd &&
+                !this.isAtEndTerminator() &&
                 this.peek().type !== TokenType.EOF
             ) {
                 const stmt = this.parseStatement();
@@ -969,7 +999,7 @@ export class Parser {
         const cases: CaseClause[] = [];
         let elseBody: Statement[] | null = null;
 
-        while (this.peek().type !== TokenType.KeywordEnd && this.peek().type !== TokenType.EOF) {
+        while (!this.isAtEndTerminator() && this.peek().type !== TokenType.EOF) {
             if (this.peek().type !== TokenType.KeywordCase) {
                 throw new Error(`Parse error: Expected 'Case' in Select Case at line ${this.peek().line}`);
             }
@@ -981,7 +1011,7 @@ export class Parser {
                 this.skipNewlines();
                 elseBody = [];
                 while (
-                    this.peek().type !== TokenType.KeywordEnd &&
+                    !this.isAtEndTerminator() &&
                     this.peek().type !== TokenType.KeywordCase &&
                     this.peek().type !== TokenType.EOF
                 ) {
@@ -1002,8 +1032,8 @@ export class Parser {
 
             const body: Statement[] = [];
             while (
+                !this.isAtEndTerminator() &&
                 this.peek().type !== TokenType.KeywordCase &&
-                this.peek().type !== TokenType.KeywordEnd &&
                 this.peek().type !== TokenType.EOF
             ) {
                 const stmt = this.parseStatement();
@@ -1030,7 +1060,7 @@ export class Parser {
         this.skipNewlines();
 
         const body: Statement[] = [];
-        while (this.peek().type !== TokenType.KeywordEnd && this.peek().type !== TokenType.EOF) {
+        while (!this.isAtEndTerminator() && this.peek().type !== TokenType.EOF) {
             const stmt = this.parseStatement();
             if (stmt) body.push(stmt);
             this.skipNewlines();

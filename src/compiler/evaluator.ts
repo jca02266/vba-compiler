@@ -354,7 +354,13 @@ export class Evaluator {
             if (num < 0 || num > 255) this.throwVbaError(6, "Overflow");
             return num;
         });
-        this.env.set('int', (val: any) => Math.floor(parseFloat(val)) || 0);
+        this.env.set('cvar', (val: any) => val);
+        this.env.set('int', (val: any) => {
+            if (val === vbaNull) return vbaNull;
+            const n = Math.floor(parseFloat(val));
+            if (!isFinite(n)) this.throwVbaError(6, "Overflow");
+            return n;
+        });
         this.env.set('ucase', (val: any) => val === vbaNull ? vbaNull : val === vbaEmpty ? "" : String(val).toUpperCase());
         this.env.set('lcase', (val: any) => val === vbaNull ? vbaNull : val === vbaEmpty ? "" : String(val).toLowerCase());
         this.env.set('trim', (val: any) => val === vbaNull ? vbaNull : val === vbaEmpty ? "" : String(val).trim());
@@ -511,7 +517,13 @@ export class Evaluator {
         });
         this.env.set('cstr', (val: any) => String(val === null ? '' : val));
         this.env.set('cbool', (val: any) => this.isTrue(val) ? vbaTrue : vbaFalse);
-        this.env.set('fix', (val: any) => val > 0 ? Math.floor(val) : Math.ceil(val));
+        this.env.set('fix', (val: any) => {
+            if (val === vbaNull) return vbaNull;
+            const n = parseFloat(val);
+            const res = n > 0 ? Math.floor(n) : Math.ceil(n);
+            if (!isFinite(res)) this.throwVbaError(6, "Overflow");
+            return res;
+        });
         this.env.set('Val', (s: any) => {
             if (typeof s !== 'string') return 0;
             const cleaned = s.replace(/ /g, '');

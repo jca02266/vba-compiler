@@ -338,6 +338,35 @@ export class Evaluator {
             }
             return n;
         });
+        this.env.set('clnglng', (val: any) => {
+            if (val === vbaNull || val === null) this.throwVbaError(13, "Type mismatch");
+            if (val instanceof VbaErrorValue) return BigInt(val.code);
+            try {
+                let n: bigint;
+                if (typeof val === 'string') {
+                    if (val.indexOf('.') === -1) {
+                        n = BigInt(val);
+                    } else {
+                        n = BigInt(this.vbaRound(parseFloat(val)));
+                    }
+                } else if (typeof val === 'number') {
+                    n = BigInt(this.vbaRound(val));
+                } else if (val instanceof VbaBoolean) {
+                    n = BigInt(val.value);
+                } else if (typeof val === 'bigint') {
+                    n = val;
+                } else {
+                    n = BigInt(val);
+                }
+                if (n < -9223372036854775808n || n > 9223372036854775807n) {
+                    this.throwVbaError(6, "Overflow");
+                }
+                return n;
+            } catch (e) {
+                this.throwVbaError(13, "Type mismatch");
+            }
+        });
+        this.env.set('clngptr', this.env.get('clnglng'));
         this.env.set('cbyte', (val: any) => {
             let num: number;
             if (val instanceof VbaBoolean) {
@@ -563,6 +592,7 @@ export class Evaluator {
             if (val.__isVbaCollection__) return 'Collection';
             if (val.__vbaClass__) return val.__className__;
             if (val.__vbaTypeName__) return val.__vbaTypeName__;
+            if (typeof val === 'bigint') return 'LongLong';
             if (typeof val === 'object') return 'Object';
             return 'Unknown';
         });
@@ -772,6 +802,7 @@ export class Evaluator {
             if (typeof val === 'number') return 5; // vbDouble
             if (typeof val === 'string') return 8; // vbString
             if (typeof val === 'object') return 9; // vbObject
+            if (typeof val === 'bigint') return 20; // vbLongLong
             return 12; // vbVariant
         });
 

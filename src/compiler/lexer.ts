@@ -157,18 +157,14 @@ export class Lexer {
 
             const char = this.peek();
 
-            // Line continuation: _ followed by optional whitespace/comment then newline
+            // Line continuation: _ must be immediately followed by \n or \r\n (no trailing spaces)
             if (char === '_') {
-                let lookahead = this.pos + 1;
-                while (lookahead < this.input.length &&
-                       (this.input[lookahead] === ' ' || this.input[lookahead] === '\t' || this.input[lookahead] === '\r')) {
-                    lookahead++;
-                }
-                if (lookahead >= this.input.length || this.input[lookahead] === '\n') {
-                    // Skip _ and the rest of the line including the newline
+                const next = this.pos + 1 < this.input.length ? this.input[this.pos + 1] : '\0';
+                const afterCr = next === '\r' && this.pos + 2 < this.input.length ? this.input[this.pos + 2] : '\0';
+                if (next === '\n' || (next === '\r' && afterCr === '\n')) {
                     this.advance(); // consume '_'
-                    while (this.peek() !== '\n' && this.peek() !== '\0') this.advance();
-                    if (this.peek() === '\n') this.advance(); // consume newline (advance() updates this.line)
+                    if (this.peek() === '\r') this.advance(); // consume \r
+                    if (this.peek() === '\n') this.advance(); // consume \n (advance() updates this.line)
                     continue;
                 }
             }

@@ -308,6 +308,19 @@ export class Evaluator {
             if (n < -2147483648 || n > 2147483647) this.throwVbaError(6, "Overflow");
             return n;
         });
+        this.env.set('ccur', (val: any) => {
+            let num: number;
+            if (val === vbaTrue) num = -1;
+            else if (val === vbaFalse) num = 0;
+            else num = parseFloat(val) || 0;
+            
+            const n = this.vbaRound(num, 4);
+            // Currency range: -922,337,203,685,477.5808 to 922,337,203,685,477.5807
+            if (n < -922337203685477.5808 || n > 922337203685477.5807) {
+                this.throwVbaError(6, "Overflow");
+            }
+            return n;
+        });
         this.env.set('cbyte', (val: any) => {
             let num: number;
             if (val instanceof VbaBoolean) {
@@ -1236,13 +1249,22 @@ export class Evaluator {
         return result;
     }
 
-    private vbaRound(val: number): number {
-        const i = Math.floor(val);
-        const f = val - i;
-        if (f < 0.5) return i;
-        if (f > 0.5) return i + 1;
-        // Midpoint: round to even
-        return (i % 2 === 0) ? i : i + 1;
+    private vbaRound(val: number, decimals: number = 0): number {
+        const factor = Math.pow(10, decimals);
+        // Use a small epsilon to handle floating point precision issues before rounding
+        const scaled = val * factor;
+        const i = Math.floor(scaled);
+        const f = scaled - i;
+        
+        // Handle very close to midpoint due to float precision
+        const epsilon = 1e-10;
+        if (Math.abs(f - 0.5) < epsilon) {
+            return ((i % 2 === 0) ? i : i + 1) / factor;
+        }
+
+        if (f < 0.5) return i / factor;
+        if (f > 0.5) return (i + 1) / factor;
+        return ((i % 2 === 0) ? i : i + 1) / factor;
     }
 
     private throwVbaError(number: number, message: string) {

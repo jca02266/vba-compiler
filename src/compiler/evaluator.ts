@@ -45,6 +45,7 @@ import { Lexer, TokenType } from './lexer';
 export const vbaEmpty = null;
 export const vbaTrue = -1;
 export const vbaFalse = 0;
+export type VbaBoolean = typeof vbaTrue | typeof vbaFalse;
 
 export class Environment {
     private variables: Map<string, any> = new Map();
@@ -278,7 +279,7 @@ export class Evaluator {
                     __isVbaDict__: true,
                     __map__: dict,
                     add: (k: string, v: any) => dict.set(k, v),
-                    exists: (k: string) => dict.has(k) ? vbaTrue : vbaFalse,
+                    exists: (k: string): VbaBoolean => dict.has(k) ? vbaTrue : vbaFalse,
                     items: () => Array.from(dict.values()),
                     keys: () => Array.from(dict.keys())
                 };

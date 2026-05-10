@@ -180,10 +180,27 @@ export class Evaluator {
         this.env.set('cstr', (val: any) => String(val === null ? '' : val));
         this.env.set('cbool', (val: any) => !!val);
         this.env.set('fix', (val: any) => val > 0 ? Math.floor(val) : Math.ceil(val));
-        this.env.set('val', (val: any) => {
-            const s = String(val || '').replace(/ /g, '');
-            const num = parseFloat(s);
-            return isNaN(num) ? 0 : num;
+        this.env.set('Val', (s: any) => {
+            if (typeof s !== 'string') return 0;
+            const cleaned = s.replace(/ /g, '');
+            const match = cleaned.match(/^[+-]?\d*(\.\d*)?/);
+            return match ? parseFloat(match[0]) || 0 : 0;
+        });
+
+        this.env.set('Str', (n: any) => {
+            const num = Number(n);
+            if (isNaN(num)) return String(n);
+            return num >= 0 ? ' ' + String(num) : String(num);
+        });
+
+        this.env.set('Oct', (n: any) => {
+            const num = Math.floor(Number(n));
+            return num.toString(8);
+        });
+
+        this.env.set('Hex', (n: any) => {
+            const num = Math.floor(Number(n));
+            return num.toString(16).toUpperCase();
         });
 
         this.env.set('abs', (val: any) => Math.abs(val));

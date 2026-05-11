@@ -344,7 +344,11 @@ export class Evaluator {
         this.env = new Environment();
         this.onPrint = onPrint;
         this.sandbox = new SandboxPath(config.sandboxRoot, config.env);
-        // Add built-in debug object
+        this.registerStandardLibrary();
+    }
+
+    private registerStandardLibrary() {
+        // --- Core Objects ---
         this.env.set('debug', {
             print: (...args: any[]) => this.onPrint(args.map(a => this.toDisplayString(a)).join(' ')),
             assert: (condition: any) => {
@@ -356,7 +360,6 @@ export class Evaluator {
         this.env.set('err', this.errObj);
         this.env.set('application', {
             wait: (time: any) => {
-                // Synchronous wait is bad in JS, but for VBA stubs we can just log or use a busy-wait if really needed
                 this.onPrint(`[APPLICATION.WAIT] ${time}`);
                 return vbaTrue;
             },
@@ -365,566 +368,33 @@ export class Evaluator {
             screenupdating: true
         });
 
-
-        // Add typical VBA built-ins
-        this.env.set('isempty', (val: any) => (val === undefined || val === null || val === '') ? vbaTrue : vbaFalse);
+        // --- Information Module ---
+        this.env.set('isempty', (val: any) => (val === undefined || val === null || val === vbaEmpty) ? vbaTrue : vbaFalse);
         this.env.set('ismissing', (val: any) => val === vbaMissing ? vbaTrue : vbaFalse);
-        this.env.set('isnumeric', (val: any) => (!isNaN(parseFloat(val)) && isFinite(val)) ? vbaTrue : vbaFalse);
-        this.env.set('cdbl', (val: any) => parseFloat(val) || 0);
-        this.env.set('csng', (val: any) => {
-            let num: number;
-            if (val === vbaTrue) num = -1;
-            else if (val === vbaFalse) num = 0;
-            else num = parseFloat(val) || 0;
-            const f32 = Math.fround(num);
-            if (!isFinite(f32) && isFinite(num)) {
-                this.throwVbaError(6, "Overflow");
-            }
-            return f32;
-        });
-        this.env.set('cdate', (val: any) => {
-            if (val === null || val === vbaNull || val === vbaEmpty) throw new Error('Execution error: Type mismatch');
-            if (val instanceof VbaDate) return val;
-            if (typeof val === 'number') return new VbaDate(val);
-            const d = new Date(val);
-            if (isNaN(d.getTime())) throw new Error(`Execution error: Type mismatch: '${val}'`);
-            return new VbaDate(toVbaDate(d));
-        });
-        this.env.set('cvdate', (val: any) => {
-            if (val === vbaNull) return vbaNull;
-            if (val === null || val === vbaEmpty) throw new Error('Execution error: Type mismatch');
-            if (val instanceof VbaDate) return val;
-            if (typeof val === 'number') return new VbaDate(val);
-            const d = new Date(val);
-            if (isNaN(d.getTime())) throw new Error(`Execution error: Type mismatch: '${val}'`);
-            return new VbaDate(toVbaDate(d));
-        });
-        this.env.set('cdec', (val: any) => {
-            if (val === vbaNull || val === null) this.throwVbaError(13, "Type mismatch");
-            if (val instanceof VbaErrorValue) this.throwVbaError(13, "Type mismatch");
-            const n = parseFloat(val);
-            if (isNaN(n)) this.throwVbaError(13, "Type mismatch");
-            return new VbaDecimal(n);
-        });
-        this.env.set('clng', (val: any) => {
-            const n = this.vbaRound(parseFloat(val) || 0);
-            if (n < -2147483648 || n > 2147483647) this.throwVbaError(6, "Overflow");
-            return n;
-        });
-        this.env.set('ccur', (val: any) => {
-            let num: number;
-            if (val === vbaTrue) num = -1;
-            else if (val === vbaFalse) num = 0;
-            else num = parseFloat(val) || 0;
-            
-            const n = this.vbaRound(num, 4);
-            // Currency range: -922,337,203,685,477.5808 to 922,337,203,685,477.5807
-            if (n < -922337203685477.5808 || n > 922337203685477.5807) {
-                this.throwVbaError(6, "Overflow");
-            }
-            return n;
-        });
-        this.env.set('clnglng', (val: any) => {
-            if (val === vbaNull || val === null) this.throwVbaError(13, "Type mismatch");
-            if (val instanceof VbaErrorValue) return BigInt(val.code);
-            try {
-                let n: bigint;
-                if (typeof val === 'string') {
-                    if (val.indexOf('.') === -1) {
-                        n = BigInt(val);
-                    } else {
-                        n = BigInt(this.vbaRound(parseFloat(val)));
-                    }
-                } else if (typeof val === 'number') {
-                    n = BigInt(this.vbaRound(val));
-                } else if (val instanceof VbaBoolean) {
-                    n = BigInt(val.value);
-                } else if (typeof val === 'bigint') {
-                    n = val;
-                } else {
-                    n = BigInt(val);
-                }
-                if (n < -9223372036854775808n || n > 9223372036854775807n) {
-                    this.throwVbaError(6, "Overflow");
-                }
-                return n;
-            } catch (e) {
-                this.throwVbaError(13, "Type mismatch");
-            }
-        });
-        this.env.set('clngptr', this.env.get('clnglng'));
-        this.env.set('cbyte', (val: any) => {
-            let num: number;
-            if (val instanceof VbaBoolean) {
-                num = val.value === -1 ? 255 : 0;
-            } else if (typeof val === 'string') {
-                num = parseFloat(val);
-                if (isNaN(num)) this.throwVbaError(13, "Type mismatch");
-                num = this.vbaRound(num);
-            } else if (typeof val === 'number') {
-                num = this.vbaRound(val);
-            } else {
-                num = this.vbaRound(Number(val));
-            }
-            if (num < 0 || num > 255) this.throwVbaError(6, "Overflow");
-            return num;
-        });
-        this.env.set('cvar', (val: any) => val);
-        this.env.set('int', (val: any) => {
-            if (val === vbaNull) return vbaNull;
-            const n = Math.floor(this.toNumber(val));
-            if (!isFinite(n)) this.throwVbaError(6, "Overflow");
-            return n;
-        });
-        this.env.set('ucase', (val: any) => val === vbaNull ? vbaNull : val === vbaEmpty ? "" : String(val).toUpperCase());
-        this.env.set('lcase', (val: any) => val === vbaNull ? vbaNull : val === vbaEmpty ? "" : String(val).toLowerCase());
-        this.env.set('str', (val: any) => {
-            if (val === vbaNull) return vbaNull;
-            const n = this.toNumber(val);
-            return (n >= 0 ? " " : "") + String(n);
-        });
-        this.env.set('str$', this.env.get('str'));
-        this.env.set('trim', (val: any) => val === vbaNull ? vbaNull : val === vbaEmpty ? "" : String(val).trim());
-        this.env.set('ltrim', (val: any) => val === vbaNull ? vbaNull : val === vbaEmpty ? "" : String(val).replace(/^\s+/, ''));
-        this.env.set('rtrim', (val: any) => val === vbaNull ? vbaNull : val === vbaEmpty ? "" : String(val).replace(/\s+$/, ''));
-        this.env.set('len', (val: any) => String(val || '').length);
-        this.env.set('left', (val: any, len: number) => String(val || '').substring(0, len));
-        this.env.set('right', (val: any, len: number) => {
-            const s = String(val || '');
-            return s.substring(s.length - len);
-        });
-        this.env.set('mid', (val: any, start: number, len?: number) => {
-            const s = String(val || '');
-            return len !== undefined ? s.substring(start - 1, start - 1 + len) : s.substring(start - 1);
-        });
-        this.env.set('format', (val: any, pattern?: string) => {
-            if (val === null || val === vbaNull || val === vbaEmpty) return "";
-            const fmt = pattern ? String(pattern) : "";
-            if (fmt === "") return String(val);
-
-            const fmtLower = fmt.toLowerCase();
-            const namedFormats = ['general number', 'currency', 'fixed', 'standard', 'percent', 'scientific', 'true/false', 'yes/no', 'on/off'];
-            const dateNamedFormats = ['general date', 'long date', 'medium date', 'short date', 'long time', 'medium time', 'short time'];
-            
-            if (namedFormats.includes(fmtLower)) {
-                if (typeof val === 'number') return this.formatNumber(val, fmt);
-                return String(val);
-            }
-            if (dateNamedFormats.includes(fmtLower)) {
-                const dateVal = val instanceof VbaDate ? fromVbaDate(val.value) : (typeof val === 'number' ? fromVbaDate(val) : new Date(String(val)));
-                return this.formatDate(dateVal, fmt);
-            }
-
-            // If pattern looks like a date pattern, treat number as a date
-            const isDatePattern = /y|m|d|h|n|s|am\/pm/i.test(fmt);
-
-            if (val instanceof VbaDate) {
-                return this.formatDate(fromVbaDate(val.value), fmt);
-            }
-            if (typeof val === 'number') {
-                if (isDatePattern && !/^[0#,.%]+$/.test(fmt)) {
-                     return this.formatDate(fromVbaDate(val), fmt);
-                }
-                return this.formatNumber(val, fmt);
-            }
-            return String(val);
-        });
-        this.env.set('format$', (val: any, pattern?: string) => {
-            return this.env.get('format')(val, pattern);
-        });
-        this.env.set('instr', (...args: any[]) => {
-            let start: number, s1: any, s2: any, compare: number | undefined;
-            if (args.length >= 4) {
-                [start, s1, s2, compare] = [args[0], args[1], args[2], args[3]];
-            } else if (args.length === 3 && typeof args[0] === 'number') {
-                [start, s1, s2] = [args[0], args[1], args[2]];
-            } else {
-                [start, s1, s2] = [1, args[0], args[1]];
-            }
-            if (s1 === vbaNull || s2 === vbaNull) return vbaNull;
-            const str1 = String(s1 ?? '');
-            const str2 = String(s2 ?? '');
-            
-            const isText = (compare === 1) || (compare === undefined && this.comparisonMode === 'Text');
-            if (isText) {
-                const idx = str1.toLowerCase().indexOf(str2.toLowerCase(), start - 1);
-                return idx === -1 ? 0 : idx + 1;
-            } else {
-                const idx = str1.indexOf(str2, start - 1);
-                return idx === -1 ? 0 : idx + 1;
-            }
-        });
-        this.env.set('instrrev', (s1: any, s2: any, start: any = -1, compare: any = undefined) => {
-            if (s1 === vbaNull || s2 === vbaNull) return vbaNull;
-            const str = String(s1 ?? '');
-            const find = String(s2 ?? '');
-            if (str === "") return 0;
-            if (find === "") return (start === -1 || start === undefined) ? str.length : Number(start);
-            
-            const effectiveStart = (start === -1 || start === undefined) ? str.length : Number(start);
-            if (effectiveStart > str.length) return 0;
-
-            const isText = (compare === 1) || (compare === undefined && this.comparisonMode === 'Text');
-            let idx: number;
-            if (isText) {
-                idx = str.toLowerCase().lastIndexOf(find.toLowerCase(), effectiveStart - 1);
-            } else {
-                idx = str.lastIndexOf(find, effectiveStart - 1);
-            }
-            return idx === -1 ? 0 : idx + 1;
-        });
-        this.env.set('strcomp', (s1: any, s2: any, compare?: number) => {
-            if (s1 === vbaNull || s2 === vbaNull) return vbaNull;
-            let str1 = String(s1 ?? '');
-            let str2 = String(s2 ?? '');
-            const isText = (compare === 1) || (compare === undefined && this.comparisonMode === 'Text');
-            if (isText) {
-                str1 = str1.toLowerCase();
-                str2 = str2.toLowerCase();
-            }
-            if (str1 < str2) return -1;
-            if (str1 > str2) return 1;
-            return 0;
-        });
-        this.env.set('strreverse', (s: any) => {
-            if (s === vbaNull) throw new Error('Execution error: Invalid use of Null');
-            return String(s ?? '').split('').reverse().join('');
-        });
-        this.env.set('strconv', (s: any, conversion: any, lcid?: any) => {
-            if (s === vbaNull) return vbaNull;
-            let str = String(s ?? '');
-            const c = parseInt(conversion) || 0;
-
-            const casing = c & 3;
-            if (casing === 1) { // vbUpperCase
-                str = str.toUpperCase();
-            } else if (casing === 2) { // vbLowerCase
-                str = str.toLowerCase();
-            } else if (casing === 3) { // vbProperCase
-                str = str.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-            }
-
-            if (c & 4) { // vbWide
-                str = str.replace(/[!-~]/g, m => String.fromCharCode(m.charCodeAt(0) + 0xFEE0));
-                const map: any = { '｡': '。', '｢': '「', '｣': '」', '､': '、', '･': '・', 'ｦ': 'ヲ', 'ｧ': 'ァ', 'ｨ': 'ィ', 'ｩ': 'ゥ', 'ｪ': 'ェ', 'ｫ': 'ォ', 'ｬ': 'ャ', 'ｭ': 'ュ', 'ｮ': 'ョ', 'ｯ': 'ッ', 'ｰ': 'ー', 'ｱ': 'ア', 'ｲ': 'イ', 'ｳ': 'ウ', 'ｴ': 'エ', 'ｵ': 'オ', 'ｶ': 'カ', 'ｷ': 'キ', 'ｸ': 'ク', 'ｹ': 'ケ', 'ｺ': 'コ', 'ｻ': 'サ', 'ｼ': 'シ', 'ｽ': 'ス', 'ｾ': 'セ', 'ｿ': 'ソ', 'ﾀ': 'タ', 'ﾁ': 'チ', 'ﾂ': 'ツ', 'ﾃ': 'テ', 'ﾄ': 'ト', 'ﾅ': 'ナ', 'ﾆ': 'ニ', 'ﾇ': 'ヌ', 'ネ': 'ネ', 'ﾉ': 'ノ', 'ﾊ': 'ハ', 'ﾋ': 'ヒ', 'ﾌ': 'フ', 'ﾍ': 'ヘ', 'ﾎ': 'ホ', 'ﾏ': 'マ', 'ﾐ': 'ミ', 'ﾑ': 'ム', 'ﾒ': 'メ', 'ﾓ': 'モ', 'ﾔ': 'ヤ', 'ﾕ': 'ユ', 'ﾖ': 'ヨ', 'ﾗ': 'ラ', 'ﾘ': 'リ', 'ﾙ': 'ル', 'ﾚ': 'レ', 'ﾛ': 'ロ', 'ﾜ': 'ワ', 'ﾝ': 'ン', 'ﾞ': '゛', 'ﾟ': '゜' };
-                str = str.replace(/[｡-ﾟ]/g, m => map[m] || m);
-            }
-
-            if (c & 8) { // vbNarrow
-                str = str.replace(/[！-～]/g, m => String.fromCharCode(m.charCodeAt(0) - 0xFEE0));
-                const map: any = { '。': '｡', '「': '｢', '」': '｣', '、': '､', '・': '･', 'ヲ': 'ｦ', 'ァ': 'ｧ', 'ィ': 'ｨ', 'ゥ': 'ｩ', 'ェ': 'ｪ', 'ォ': 'ｫ', 'ャ': 'ｬ', 'ュ': 'ｭ', 'ョ': 'ｮ', 'ッ': 'ｯ', 'ー': 'ｰ', 'ア': 'ｱ', 'イ': 'ｲ', 'ウ': 'ｳ', 'エ': 'ｴ', 'オ': 'ｵ', 'カ': 'ｶ', 'キ': 'ｷ', 'ク': 'ｸ', 'ケ': 'ｹ', 'コ': 'ｺ', 'サ': 'ｻ', 'シ': 'ｼ', 'ス': 'ｽ', 'セ': 'ｾ', 'ソ': 'ｿ', 'タ': 'ﾀ', 'チ': 'ﾁ', 'ツ': 'ﾂ', 'テ': 'ﾃ', 'ト': 'ﾄ', 'ナ': 'ﾅ', 'ニ': 'ﾆ', 'ヌ': 'ﾇ', 'ネ': 'ﾈ', 'ノ': 'ﾉ', 'ハ': 'ﾊ', 'ヒ': 'ﾋ', 'フ': 'ﾌ', 'ヘ': 'ﾍ', 'ホ': 'ﾎ', 'マ': 'ﾏ', 'ミ': 'ﾐ', 'ム': 'ﾑ', 'メ': 'ﾒ', 'モ': 'ﾓ', 'ヤ': 'ﾔ', 'ユ': 'ﾕ', 'ヨ': 'ﾖ', 'ラ': 'ﾗ', 'リ': 'ﾘ', 'ル': 'ﾙ', 'レ': 'ﾚ', 'ロ': 'ﾛ', 'ワ': 'ﾜ', 'ン': 'ﾝ', '゛': 'ﾞ', '゜': 'ﾟ' };
-                str = str.replace(/[。-゜]/g, m => map[m] || m);
-            }
-
-            if (c & 16) { // vbKatakana
-                str = str.replace(/[\u3041-\u3096]/g, m => String.fromCharCode(m.charCodeAt(0) + 0x60));
-            }
-
-            if (c & 32) { // vbHiragana
-                str = str.replace(/[\u30A1-\u30FA]/g, m => String.fromCharCode(m.charCodeAt(0) - 0x60));
-            }
-
-            return str;
-        });
-
-
-        this.env.set('replace', (s: any, find: any, repl: any) => String(s || '').split(String(find || '')).join(String(repl || '')));
-
-        this.env.set('filter', (sourceArray: any, match: any, include: any = vbaTrue, compare: any = undefined) => {
-            if (!Array.isArray(sourceArray)) return [];
-            const matchStr = String(match);
-            const isInclude = this.isTrue(include);
-            const isText = (compare === 1) || (compare === undefined && this.comparisonMode === 'Text');
-            
-            const result = sourceArray.filter(item => {
-                const s = String(item);
-                const found = isText ? s.toLowerCase().includes(matchStr.toLowerCase()) : s.includes(matchStr);
-                return isInclude ? found : !found;
-            });
-            const resArray = [...result];
-            (resArray as any).vbaBase = 0;
-            return resArray;
-        });
-
-        // Information Module
-        this.env.set('isarray', (val: any) => Array.isArray(val) ? vbaTrue : vbaFalse);
-        this.env.set('isdate', (val: any) => (val instanceof VbaDate || !isNaN(Date.parse(String(val)))) ? vbaTrue : vbaFalse);
-        this.env.set('isobject', (val: any) => (val && typeof val === 'object' && !Array.isArray(val)) ? vbaTrue : vbaFalse);
-        this.env.set('iserror', (val: any) => (val && val.type === 'VbaError') ? vbaTrue : vbaFalse);
-        this.env.set('isnull', (val: any) => (val === null || val === vbaNull) ? vbaTrue : vbaFalse);
-
-        this.env.set('cint', (val: any) => {
-            const n = this.vbaRound(parseFloat(val) || 0);
-            if (n < -32768 || n > 32767) this.throwVbaError(6, "Overflow");
-            return n;
-        });
-        this.env.set('cstr', (val: any) => String(val === null ? '' : val));
-        this.env.set('cbool', (val: any) => this.isTrue(val) ? vbaTrue : vbaFalse);
-        this.env.set('cbyte', (val: any) => {
-            const n = this.vbaRound(parseFloat(val));
-            if (n < 0 || n > 255) this.throwVbaError(6, "Overflow");
-            return n;
-        });
-        this.env.set('fix', (val: any) => {
-            if (val === vbaNull) return vbaNull;
-            const n = parseFloat(val);
-            const res = n > 0 ? Math.floor(n) : Math.ceil(n);
-            if (!isFinite(res)) this.throwVbaError(6, "Overflow");
-            return res;
-        });
-
-        const parseToDate = (val: any) => {
-            if (val === null || val === vbaNull) return vbaNull;
-            if (val instanceof VbaDate) return val;
-            if (typeof val === 'number') return new VbaDate(val);
+        this.env.set('isnumeric', (val: any) => {
+            if (val === vbaNull) return vbaFalse;
+            if (val === vbaEmpty || val === undefined) return vbaTrue;
+            if (typeof val === 'number' || typeof val === 'bigint' || val instanceof VbaDecimal || val instanceof VbaBoolean || val instanceof VbaDate) return vbaTrue;
             if (typeof val === 'string') {
-                if (/^\d+(\.\d+)?$/.test(val)) {
-                    return new VbaDate(parseFloat(val));
-                }
-                const d = Date.parse(val);
-                if (isNaN(d)) {
-                    this.throwVbaError(13, "Type mismatch");
-                }
-                return new VbaDate(d / 86400000 + 25569);
-            }
-            this.throwVbaError(13, "Type mismatch");
-        };
-        this.env.set('cdate', parseToDate);
-        this.env.set('cvdate', parseToDate);
-        this.env.set('Val', (s: any) => {
-            if (typeof s !== 'string') return 0;
-            const cleaned = s.trim().replace(/ /g, '');
-            if (cleaned.toLowerCase().startsWith('&h')) {
-                return parseInt(cleaned.slice(2), 16) || 0;
-            }
-            if (cleaned.toLowerCase().startsWith('&o')) {
-                return parseInt(cleaned.slice(2), 8) || 0;
-            }
-            const match = cleaned.match(/^[+-]?\d*(\.\d*)?/);
-            return match ? parseFloat(match[0]) || 0 : 0;
-        });
-
-
-        this.env.set('TypeName', (val: any) => {
-            if (val === vbaEmpty || val === undefined) return 'Empty';
-            if (val === vbaNull) return 'Null';
-            if (val === vbaNothing) return 'Nothing';
-            if (val === vbaMissing) return 'Error';
-            if (val instanceof VbaErrorValue) return 'Error';
-            if (val instanceof VbaBoolean) return 'Boolean';
-            if (val instanceof VbaDate) return 'Date';
-            if (typeof val === 'number') return 'Double';
-            if (typeof val === 'string') return 'String';
-            if (typeof val === 'boolean') return 'Boolean';
-            if (Array.isArray(val)) return 'Variant()';
-            if (val.__isVbaDict__) return 'Dictionary';
-            if (val.__isVbaCollection__) return 'Collection';
-            if (val.__vbaClass__) return val.__className__;
-            if (val.__vbaTypeName__) return val.__vbaTypeName__;
-            if (val instanceof VbaDecimal) return 'Decimal';
-            if (typeof val === 'bigint') return 'LongLong';
-            if (typeof val === 'object') return 'Object';
-            return 'Unknown';
-        });
-
-        this.env.set('abs', (val: any) => val === vbaNull ? vbaNull : Math.abs(val));
-        this.env.set('round', (val: any, digits: any = 0) => {
-            if (val === vbaNull) return vbaNull;
-            return this.vbaRound(parseFloat(val) || 0, parseInt(digits) || 0);
-        });
-        this.env.set('sqr', (val: any) => val === vbaNull ? vbaNull : Math.sqrt(val));
-
-        // --- Math Module (§6.1.2.10) ---
-        this.env.set('sgn', (val: any) => {
-            if (val === vbaNull) return vbaNull;
-            const n = this.toNumber(val);
-            return n > 0 ? 1 : n < 0 ? -1 : 0;
-        });
-        this.env.set('sin', (val: any) => val === vbaNull ? vbaNull : Math.sin(this.toNumber(val)));
-        this.env.set('cos', (val: any) => val === vbaNull ? vbaNull : Math.cos(this.toNumber(val)));
-        this.env.set('tan', (val: any) => val === vbaNull ? vbaNull : Math.tan(this.toNumber(val)));
-        this.env.set('atn', (val: any) => val === vbaNull ? vbaNull : Math.atan(this.toNumber(val)));
-        this.env.set('exp', (val: any) => {
-            if (val === vbaNull) return vbaNull;
-            const n = this.toNumber(val);
-            if (n > 709.782712893) this.throwVbaError(6, "Overflow");
-            return Math.exp(n);
-        });
-        this.env.set('log', (val: any) => {
-            if (val === vbaNull) return vbaNull;
-            const n = this.toNumber(val);
-            if (n <= 0) this.throwVbaError(5, "Invalid procedure call or argument");
-            return Math.log(n);
-        });
-
-        // Rnd / Randomize: shared state for the random sequence
-        let rndSeed = 0.5;   // initial seed value
-        let lastRnd = 0.5;   // most recently generated value
-        let rndInitialized = false;
-
-        // Simple LCG for seeded Rnd(< 0) — matches "same every time for given seed"
-        const seededRnd = (seed: number): number => {
-            // Use a deterministic formula: frac(abs(seed) * some_constant)
-            const s = Math.abs(seed) * 9301 + 49297;
-            return (s % 233280) / 233280;
-        };
-
-        this.env.set('rnd', (val?: any) => {
-            if (!rndInitialized) {
-                // Without Randomize, use a fixed initial sequence
-                rndSeed = 0.5;
-                rndInitialized = true;
-            }
-            if (val === undefined || val === null || (typeof val === 'number' && val > 0)) {
-                // Next in sequence
-                rndSeed = (rndSeed * 214013 + 2531011) % 4294967296;
-                lastRnd = rndSeed / 4294967296;
-                return lastRnd;
-            } else if (typeof val === 'number' && val === 0) {
-                // Return most recently generated number
-                return lastRnd;
-            } else if (typeof val === 'number' && val < 0) {
-                // Same number every time for given seed
-                const r = seededRnd(val);
-                lastRnd = r;
-                return r;
-            }
-            return lastRnd;
-        });
-
-        this.env.set('randomize', (val?: any) => {
-            rndInitialized = true;
-            if (val === undefined || val === null) {
-                rndSeed = Date.now() % 4294967296;
-            } else {
-                // Seed from given number — deterministic
-                const n = Math.abs(Number(val));
-                rndSeed = Math.round(n * 1000) % 4294967296;
-            }
-            lastRnd = rndSeed / 4294967296;
-        });
-
-        this.env.set('isnull', (val: any) => val === vbaNull ? vbaTrue : vbaFalse);
-        this.env.set('isdate', (val: any) => {
-            if (val === null || val === undefined || val === vbaNull || val === vbaEmpty || val === vbaMissing) return vbaFalse;
-            if (val instanceof VbaDate) return vbaTrue;
-            if (typeof val === 'number') return vbaTrue;
-            if (typeof val === 'string') {
-                const d = new Date(val);
-                return !isNaN(d.getTime()) ? vbaTrue : vbaFalse;
+                const s = val.trim();
+                if (s === "") return vbaFalse;
+                const cleaned = s.replace(/[$,]/g, '');
+                return (!isNaN(Number(cleaned)) && isFinite(Number(cleaned))) ? vbaTrue : vbaFalse;
             }
             return vbaFalse;
         });
-        const errorMessages: Record<number, string> = {
-            3: "Return without GoSub",
-            5: "Invalid procedure call or argument",
-            6: "Overflow",
-            7: "Out of memory",
-            9: "Subscript out of range",
-            10: "This array is fixed or temporarily locked",
-            11: "Division by zero",
-            13: "Type mismatch",
-            14: "Out of string space",
-            16: "Expression too complex",
-            17: "Can't perform requested operation",
-            18: "User interrupt occurred",
-            20: "Resume without error",
-            28: "Out of stack space",
-            35: "Sub or Function not defined",
-            48: "Error in loading DLL",
-            51: "Internal error",
-            52: "Bad file name or number",
-            53: "File not found",
-            54: "Bad file mode",
-            55: "File already open",
-            57: "Device I/O error",
-            58: "File already exists",
-            59: "Bad record length",
-            61: "Disk full",
-            62: "Input past end of file",
-            63: "Bad record number",
-            67: "Too many files",
-            68: "Device unavailable",
-            70: "Permission denied",
-            71: "Disk not ready",
-            74: "Can't rename with different drive",
-            75: "Path/File access error",
-            76: "Path not found",
-            91: "Object variable or With block variable not set",
-            92: "For loop not initialized",
-            93: "Invalid pattern string",
-            94: "Invalid use of Null",
-            321: "Invalid file format",
-            322: "Can't create necessary temporary file",
-            325: "Invalid format in resource file",
-            380: "Invalid property value",
-            424: "Object required",
-            429: "ActiveX component can't create object",
-            430: "Class doesn't support Automation or doesn't support expected interface",
-            438: "Object doesn't support this property or method",
-            440: "Automation error",
-            445: "Object doesn't support this action",
-            446: "Object doesn't support named arguments",
-            447: "Object doesn't support current locale settings",
-            448: "Named argument not found",
-            449: "Argument not optional",
-            450: "Wrong number of arguments or invalid property assignment",
-            451: "Property let procedure not defined and property get procedure did not return an object",
-            453: "Specified DLL function not found",
-            457: "This key is already associated with an element of this collection",
-            458: "Variable uses an Automation type not supported in Visual Basic",
-            459: "Object or class does not support the set of events",
-            460: "Invalid clipboard format",
-            461: "Method or data member not found",
-            462: "The remote server machine does not exist or is unavailable",
-            463: "Class not registered on local machine",
-            481: "Invalid picture",
-            482: "Printer error",
-            735: "Can't save file to TEMP",
-            744: "Search text not found",
-            746: "Replacements too long"
-        };
-
-        const errorFunc = (errNum?: any) => {
-            const num = (errNum === undefined) ? this.env.get('err').number : (parseInt(errNum) || 0);
-            if (num === 0) return "";
-            if (num > 65535) this.throwVbaError(6, "Overflow");
-            return errorMessages[num] || "Application-defined or object-defined error";
-        };
-        (errorFunc as any).__vbaAutoCall__ = true;
-        this.env.set('error', errorFunc);
-        this.env.set('error$', errorFunc);
-
+        this.env.set('isdate', (val: any) => {
+            if (val instanceof VbaDate) return vbaTrue;
+            if (typeof val === 'string') {
+                const d = Date.parse(val);
+                return !isNaN(d) ? vbaTrue : vbaFalse;
+            }
+            return vbaFalse;
+        });
+        this.env.set('isobject', (val: any) => (val && typeof val === 'object' && !Array.isArray(val) && val !== vbaNull) ? vbaTrue : vbaFalse);
         this.env.set('iserror', (val: any) => (val instanceof VbaErrorValue) ? vbaTrue : vbaFalse);
-        this.env.set('cverr', (val: any) => {
-            if (val instanceof VbaErrorValue) return val;
-            const code = parseInt(val) || 0;
-            if (code < 0 || code > 65535) {
-                this.throwVbaError(5, "Invalid procedure call or argument");
-            }
-            return new VbaErrorValue(code);
-        });
-        this.env.set('ismissing', (val: any) => (val === vbaMissing) ? vbaTrue : vbaFalse);
+        this.env.set('isnull', (val: any) => (val === vbaNull) ? vbaTrue : vbaFalse);
         this.env.set('isarray', (val: any) => Array.isArray(val) ? vbaTrue : vbaFalse);
-        this.env.set('isobject', (val: any) => (val !== null && typeof val === 'object' && !Array.isArray(val)) ? vbaTrue : vbaFalse);
-        this.env.set('choose', (index: any, ...choices: any[]) => {
-            const idx = Math.floor(Number(index));
-            if (idx >= 1 && idx <= choices.length) {
-                return choices[idx - 1];
-            }
-            return vbaNull;
-        });
-        this.env.set('switch', (...args: any[]) => {
-            for (let i = 0; i < args.length; i += 2) {
-                if (i + 1 < args.length) {
-                    const cond = args[i];
-                    if (cond === vbaTrue || cond === true) {
-                        return args[i + 1];
-                    }
-                }
-            }
-            return vbaNull;
-        });
 
         this.env.set('vartype', (val: any) => {
             if (val === vbaEmpty || val === undefined) return 0; // vbEmpty
@@ -941,587 +411,323 @@ export class Evaluator {
             return 12; // vbVariant
         });
 
-        // VBA Type Constants (§6.1.1)
-        this.env.set('vbempty', 0);
-        this.env.set('vbnull', 1);
-        this.env.set('vbinteger', 2);
-        this.env.set('vblong', 3);
-        this.env.set('vbsingle', 4);
-        this.env.set('vbdouble', 5);
-        this.env.set('vbcurrency', 6);
-        this.env.set('vbdate', 7);
-        this.env.set('vbstring', 8);
-        this.env.set('vbobject', 9);
-        this.env.set('vberror', 10);
-        this.env.set('vbboolean', 11);
-        this.env.set('vbvariant', 12);
-        this.env.set('vbdataobject', 13);
-        this.env.set('vbdecimal', 14);
-        this.env.set('vbbyte', 17);
-        this.env.set('vblonglong', 20);
-        this.env.set('vbarray', 8192);
-        this.env.set('lbound', (arr: any) => {
-            if (Array.isArray(arr)) {
-                return (arr as any).vbaBase || 0;
+        this.env.set('typename', (val: any) => {
+            if (val === vbaEmpty || val === undefined) return 'Empty';
+            if (val === vbaNull) return 'Null';
+            if (val === vbaNothing) return 'Nothing';
+            if (val === vbaMissing || val instanceof VbaErrorValue) return 'Error';
+            if (val instanceof VbaBoolean) return 'Boolean';
+            if (val instanceof VbaDate) return 'Date';
+            if (typeof val === 'number') return 'Double';
+            if (typeof val === 'string') return 'String';
+            if (Array.isArray(val)) return 'Variant()';
+            if (val.__isVbaDict__) return 'Dictionary';
+            if (val.__isVbaCollection__) return 'Collection';
+            if (val.__vbaClass__) return val.__className__;
+            if (val instanceof VbaDecimal) return 'Decimal';
+            if (typeof val === 'bigint') return 'LongLong';
+            return 'Object';
+        });
+
+        // --- Conversion Module ---
+        this.env.set('cbyte', (val: any) => {
+            const n = this.vbaRound(this.toVbaNumber(val));
+            if (n < 0 || n > 255) this.throwVbaError(6, "Overflow");
+            return n;
+        });
+        this.env.set('cint', (val: any) => {
+            const n = this.vbaRound(this.toVbaNumber(val));
+            if (n < -32768 || n > 32767) this.throwVbaError(6, "Overflow");
+            return n;
+        });
+        this.env.set('clng', (val: any) => {
+            const n = this.vbaRound(this.toVbaNumber(val));
+            if (n < -2147483648 || n > 2147483647) this.throwVbaError(6, "Overflow");
+            return n;
+        });
+        this.env.set('csng', (val: any) => {
+            const n = this.toVbaNumber(val);
+            const f32 = Math.fround(n);
+            if (!isFinite(f32) && isFinite(n)) this.throwVbaError(6, "Overflow");
+            return f32;
+        });
+        this.env.set('cdbl', (val: any) => this.toVbaNumber(val));
+        this.env.set('cdate', (val: any) => {
+            if (val === null || val === vbaNull || val === vbaEmpty) this.throwVbaError(13, "Type mismatch");
+            if (val instanceof VbaDate) return val;
+            if (typeof val === 'string' && !/^\d+(\.\d+)?$/.test(val)) {
+                const d = Date.parse(val);
+                if (isNaN(d)) this.throwVbaError(13, "Type mismatch");
+                return new VbaDate(d / 86400000 + 25569);
             }
-            return 0;
+            return new VbaDate(this.toVbaNumber(val));
+        });
+        this.env.set('cvdate', this.env.get('cdate'));
+        this.env.set('cdec', (val: any) => new VbaDecimal(this.toVbaNumber(val)));
+        this.env.set('ccur', (val: any) => {
+            const n = this.vbaRound(this.toVbaNumber(val), 4);
+            if (n < -922337203685477.5808 || n > 922337203685477.5807) this.throwVbaError(6, "Overflow");
+            return n;
+        });
+        this.env.set('clnglng', (val: any) => {
+            if (val === vbaNull || val === null) this.throwVbaError(13, "Type mismatch");
+            if (typeof val === 'bigint') return val;
+            const n = BigInt(this.vbaRound(this.toVbaNumber(val)));
+            if (n < -9223372036854775808n || n > 9223372036854775807n) this.throwVbaError(6, "Overflow");
+            return n;
+        });
+        this.env.set('clngptr', this.env.get('clnglng'));
+        this.env.set('cstr', (val: any) => val === vbaNull ? this.throwVbaError(94, "Invalid use of Null") : String(val === vbaEmpty ? "" : val));
+        this.env.set('cbool', (val: any) => this.isTrue(val) ? vbaTrue : vbaFalse);
+        this.env.set('cvar', (val: any) => val);
+        this.env.set('cverr', (val: any) => {
+            if (val instanceof VbaErrorValue) return val;
+            const code = this.toVbaNumber(val);
+            if (code < 0 || code > 65535) this.throwVbaError(5, "Invalid procedure call or argument");
+            return new VbaErrorValue(code);
         });
 
-        this.env.set('environ', (key: any) => {
-            if (key === vbaNull) return "";
-            return this.sandbox.getEnv(key);
-        });
-        this.env.set('environ$', this.env.get('environ'));
-        this.env.set('iif', (cond: any, truePart: any, falsePart: any) => cond ? truePart : falsePart);
-        this.env.set('array', (...args: any[]) => {
-            const arr = [...args];
-            (arr as any).vbaBase = 0;
-            return arr;
-        });
-        this.env.set('split', (s: any, delimiter: string = ' ') => String(s || '').split(delimiter));
-        this.env.set('join', (arr: any[], delimiter: string = ' ') => Array.isArray(arr) ? arr.join(delimiter) : String(arr));
-        this.env.set('asc', (s: any) => String(s || '').charCodeAt(0));
-        this.env.set('chr', (n: number) => String.fromCharCode(n));
-        this.env.set('space', (n: number) => ' '.repeat(n));
-        this.env.set('string', (n: number, char: any) => {
-            const s = String(char || '');
-            return (s.length > 0 ? s[0] : '').repeat(n);
-        });
-
-        this.env.set('ubound', (arr: any, dimension?: number) => {
-            if (Array.isArray(arr)) {
-                const base = (arr as any).vbaBase || 0;
-                if (dimension === 2 && arr.length > 0 && Array.isArray(arr[0])) {
-                    const subBase = (arr[0] as any).vbaBase || 0;
-                    return subBase + arr[0].length - 1;
-                }
-                return base + arr.length - 1;
-            }
-            return 0;
-        });
-        this.env.set('shell', (pathname: string, windowstyle: number = 1) => {
-            // Mock implementation: do not execute external commands
-            this.onPrint(`[Mock Shell] Executing: ${pathname} (Style: ${windowstyle})`);
-            return 1; // Dummy task ID
-        });
-
-        // --- File I/O Functions ---
-        this.env.set('freefile', () => {
-            for (let i = 1; i <= 511; i++) {
-                if (!this.fileHandles.has(i)) return i;
-            }
-            throw new Error("Execution error: Too many open files");
-        });
-        this.env.set('lof', (fileNum: number) => {
-            const handle = this.fileHandles.get(fileNum);
-            if (!handle) this.throwVbaError(52, "Bad file name or number");
-            return fs.statSync(handle.path).size;
-        });
-        this.env.set('eof', (fileNum: number) => {
-            const handle = this.fileHandles.get(fileNum);
-            if (!handle) this.throwVbaError(52, "Bad file name or number");
-            const size = fs.statSync(handle.path).size;
-            return handle.pos! >= size ? vbaTrue : vbaFalse;
-        });
-        this.env.set('loc', (fileNum: number) => {
-            const handle = this.fileHandles.get(fileNum);
-            if (!handle) this.throwVbaError(52, "Bad file name or number");
-            // For sequential files, Loc returns the last 128-byte block read/written
-            // For binary, it returns the position of the last byte read/written
-            return handle.pos;
-        });
-
-        // --- Conversion Functions ---
         this.env.set('hex', (n: any) => {
             if (n === vbaNull) return vbaNull;
-            const val = Math.floor(Number(n));
-            return (val >>> 0).toString(16).toUpperCase();
+            return (Math.floor(this.toVbaNumber(n)) >>> 0).toString(16).toUpperCase();
         });
         this.env.set('oct', (n: any) => {
             if (n === vbaNull) return vbaNull;
-            const val = Math.floor(Number(n));
-            return (val >>> 0).toString(8);
+            return (Math.floor(this.toVbaNumber(n)) >>> 0).toString(8);
+        });
+        this.env.set('val', (s: any) => {
+            if (typeof s !== 'string') return 0;
+            const cleaned = s.trim().replace(/ /g, '');
+            if (cleaned.toLowerCase().startsWith('&h')) return parseInt(cleaned.slice(2), 16) || 0;
+            if (cleaned.toLowerCase().startsWith('&o')) return parseInt(cleaned.slice(2), 8) || 0;
+            const match = cleaned.match(/^[+-]?\d*(\.\d*)?/);
+            return match ? parseFloat(match[0]) || 0 : 0;
         });
 
-        // --- Math Functions ---
-        this.env.set('int', (n: any) => {
-            if (n === vbaNull) return vbaNull;
-            const val = Number(n);
-            return Math.floor(val);
+        // --- Math Module ---
+        this.env.set('abs', (val: any) => val === vbaNull ? vbaNull : Math.abs(this.toVbaNumber(val)));
+        this.env.set('atn', (val: any) => val === vbaNull ? vbaNull : Math.atan(this.toVbaNumber(val)));
+        this.env.set('cos', (val: any) => val === vbaNull ? vbaNull : Math.cos(this.toVbaNumber(val)));
+        this.env.set('exp', (val: any) => {
+            if (val === vbaNull) return vbaNull;
+            const n = this.toVbaNumber(val);
+            if (n > 709.782712893) this.throwVbaError(6, "Overflow");
+            return Math.exp(n);
         });
-        this.env.set('fix', (n: any) => {
-            if (n === vbaNull) return vbaNull;
-            const val = Number(n);
-            return val >= 0 ? Math.floor(val) : Math.ceil(val);
+        this.env.set('int', (val: any) => val === vbaNull ? vbaNull : Math.floor(this.toVbaNumber(val)));
+        this.env.set('fix', (val: any) => {
+            if (val === vbaNull) return vbaNull;
+            const n = this.toVbaNumber(val);
+            return n >= 0 ? Math.floor(n) : Math.ceil(n);
         });
+        this.env.set('log', (val: any) => {
+            if (val === vbaNull) return vbaNull;
+            const n = this.toVbaNumber(val);
+            if (n <= 0) this.throwVbaError(5, "Invalid procedure call or argument");
+            return Math.log(n);
+        });
+        this.env.set('round', (val: any, digits: any = 0) => val === vbaNull ? vbaNull : this.vbaRound(this.toVbaNumber(val), Number(digits)));
+        this.env.set('sgn', (val: any) => {
+            if (val === vbaNull) return vbaNull;
+            const n = this.toVbaNumber(val);
+            return n > 0 ? 1 : n < 0 ? -1 : 0;
+        });
+        this.env.set('sin', (val: any) => val === vbaNull ? vbaNull : Math.sin(this.toVbaNumber(val)));
+        this.env.set('sqr', (val: any) => {
+            if (val === vbaNull) return vbaNull;
+            const n = this.toVbaNumber(val);
+            if (n < 0) this.throwVbaError(5, "Invalid procedure call or argument");
+            return Math.sqrt(n);
+        });
+        this.env.set('tan', (val: any) => val === vbaNull ? vbaNull : Math.tan(this.toVbaNumber(val)));
 
-        // --- Utility Functions ---
-        this.env.set('choose', (index: any, ...choices: any[]) => {
-            const idx = Math.floor(Number(index));
-            if (idx >= 1 && idx <= choices.length) return choices[idx - 1];
-            return vbaNull;
-        });
-        this.env.set('switch', (...args: any[]) => {
-            for (let i = 0; i < args.length; i += 2) {
-                if (this.isTrue(args[i])) return args[i + 1];
+        let rndSeed = 0.5;
+        let lastRnd = 0.5;
+        let rndInitialized = false;
+        this.env.set('rnd', (val?: any) => {
+            if (!rndInitialized) { rndSeed = 0.5; rndInitialized = true; }
+            if (val === undefined || (typeof val === 'number' && val > 0)) {
+                rndSeed = (rndSeed * 214013 + 2531011) % 4294967296;
+                lastRnd = rndSeed / 4294967296;
+                return lastRnd;
+            } else if (val === 0) {
+                return lastRnd;
+            } else if (val < 0) {
+                const s = Math.abs(Number(val)) * 9301 + 49297;
+                lastRnd = (s % 233280) / 233280;
+                return lastRnd;
             }
-            return vbaNull;
+            return lastRnd;
+        });
+        this.env.set('randomize', (val?: any) => {
+            rndInitialized = true;
+            rndSeed = (val === undefined || val === null) ? (Date.now() % 4294967296) : (Math.round(Math.abs(Number(val)) * 1000) % 4294967296);
+            lastRnd = rndSeed / 4294967296;
         });
 
-        // --- Date/Time Functions Enhancement ---
-        this.env.set('dateadd', (interval: string, number: number, date: any) => {
-            if (date === vbaNull) return vbaNull;
-            const d = parseVbaDate(date);
-            const n = Math.floor(number);
-            switch (interval.toLowerCase()) {
-                case 'yyyy': d.setFullYear(d.getFullYear() + n); break;
-                case 'q': d.setMonth(d.getMonth() + n * 3); break;
-                case 'm': d.setMonth(d.getMonth() + n); break;
-                case 'y':
-                case 'd':
-                case 'w': d.setDate(d.getDate() + n); break;
-                case 'ww': d.setDate(d.getDate() + n * 7); break;
-                case 'h': d.setHours(d.getHours() + n); break;
-                case 'n': d.setMinutes(d.getMinutes() + n); break;
-                case 's': d.setSeconds(d.getSeconds() + n); break;
+        // --- String Module ---
+        this.env.set('asc', (s: any) => String(s || '').charCodeAt(0));
+        this.env.set('chr', (n: any) => String.fromCharCode(Number(n)));
+        this.env.set('instr', (...args: any[]) => {
+            let start = 1, s1, s2, comp;
+            if (args.length >= 4) [start, s1, s2, comp] = args;
+            else if (args.length === 3 && typeof args[0] === 'number') [start, s1, s2] = args;
+            else [s1, s2] = args;
+            if (s1 === vbaNull || s2 === vbaNull) return vbaNull;
+            const str1 = String(s1 ?? ''), str2 = String(s2 ?? '');
+            const isText = (comp === 1) || (comp === undefined && this.comparisonMode === 'Text');
+            const idx = isText ? str1.toLowerCase().indexOf(str2.toLowerCase(), start - 1) : str1.indexOf(str2, start - 1);
+            return idx === -1 ? 0 : idx + 1;
+        });
+        this.env.set('instrrev', (s1: any, s2: any, start: any = -1, comp: any = undefined) => {
+            if (s1 === vbaNull || s2 === vbaNull) return vbaNull;
+            const str = String(s1 ?? ''), find = String(s2 ?? '');
+            if (find === "") return (start === -1) ? str.length : Number(start);
+            const effStart = (start === -1) ? str.length : Number(start);
+            const isText = (comp === 1) || (comp === undefined && this.comparisonMode === 'Text');
+            const idx = isText ? str.toLowerCase().lastIndexOf(find.toLowerCase(), effStart - 1) : str.lastIndexOf(find, effStart - 1);
+            return idx === -1 ? 0 : idx + 1;
+        });
+        this.env.set('lcase', (val: any) => val === vbaNull ? vbaNull : String(val ?? '').toLowerCase());
+        this.env.set('ucase', (val: any) => val === vbaNull ? vbaNull : String(val ?? '').toUpperCase());
+        this.env.set('left', (val: any, len: any) => String(val ?? '').substring(0, Number(len)));
+        this.env.set('right', (val: any, len: any) => {
+            const s = String(val ?? ''), l = Number(len);
+            return s.substring(s.length - l);
+        });
+        this.env.set('mid', (val: any, start: any, len?: any) => {
+            const s = String(val ?? ''), st = Number(start);
+            return len !== undefined ? s.substring(st - 1, st - 1 + Number(len)) : s.substring(st - 1);
+        });
+        this.env.set('len', (val: any) => val === vbaNull ? vbaNull : String(val ?? '').length);
+        this.env.set('ltrim', (val: any) => val === vbaNull ? vbaNull : String(val ?? '').trimStart());
+        this.env.set('rtrim', (val: any) => val === vbaNull ? vbaNull : String(val ?? '').trimEnd());
+        this.env.set('trim', (val: any) => val === vbaNull ? vbaNull : String(val ?? '').trim());
+        this.env.set('space', (n: any) => ' '.repeat(Number(n)));
+        this.env.set('string', (n: any, char: any) => {
+            const s = String(char ?? '');
+            return (s.length > 0 ? s[0] : '').repeat(Number(n));
+        });
+        this.env.set('split', (s: any, del: string = ' ') => String(s ?? '').split(del));
+        this.env.set('join', (arr: any, del: string = ' ') => Array.isArray(arr) ? arr.join(del) : String(arr));
+        this.env.set('replace', (s: any, f: any, r: any) => String(s ?? '').split(String(f ?? '')).join(String(r ?? '')));
+        this.env.set('strcomp', (s1: any, s2: any, comp?: number) => {
+            if (s1 === vbaNull || s2 === vbaNull) return vbaNull;
+            let str1 = String(s1 ?? ''), str2 = String(s2 ?? '');
+            const isText = (comp === 1) || (comp === undefined && this.comparisonMode === 'Text');
+            if (isText) { str1 = str1.toLowerCase(); str2 = str2.toLowerCase(); }
+            return str1 < str2 ? -1 : (str1 > str2 ? 1 : 0);
+        });
+        this.env.set('strconv', (s: any, conv: any) => {
+            if (s === vbaNull) return vbaNull;
+            let str = String(s ?? '');
+            const c = Number(conv);
+            if (c & 1) str = str.toUpperCase();
+            if (c & 2) str = str.toLowerCase();
+            if (c & 3) str = str.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+            return str;
+        });
+        this.env.set('strreverse', (s: any) => val === vbaNull ? vbaNull : String(s ?? '').split('').reverse().join(''));
+        this.env.set('format', (val: any, pattern?: string) => {
+            if (val === null || val === vbaNull || val === vbaEmpty) return "";
+            const fmt = pattern ? String(pattern) : "";
+            if (fmt === "") return String(val);
+            const fmtLower = fmt.toLowerCase();
+            const namedFormats = ['general number', 'currency', 'fixed', 'standard', 'percent', 'scientific', 'true/false', 'yes/no', 'on/off'];
+            const dateNamedFormats = ['general date', 'long date', 'medium date', 'short date', 'long time', 'medium time', 'short time'];
+            if (namedFormats.includes(fmtLower)) {
+                if (typeof val === 'number') return this.formatNumber(val, fmt);
+                return String(val);
             }
-            return new VbaDate(toVbaDate(d));
-        });
-        this.env.set('datediff', (interval: string, date1: any, date2: any) => {
-            if (date1 === vbaNull || date2 === vbaNull) return vbaNull;
-            const d1 = parseVbaDate(date1);
-            const d2 = parseVbaDate(date2);
-            const diffMs = d2.getTime() - d1.getTime();
-            switch (interval.toLowerCase()) {
-                case 'yyyy': return d2.getFullYear() - d1.getFullYear();
-                case 'm': return (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
-                case 'd': return Math.floor(diffMs / (24 * 60 * 60 * 1000));
-                case 'h': return Math.floor(diffMs / (60 * 60 * 1000));
-                case 'n': return Math.floor(diffMs / (60 * 1000));
-                case 's': return Math.floor(diffMs / 1000);
-                default: return 0;
+            if (dateNamedFormats.includes(fmtLower)) {
+                const dateVal = val instanceof VbaDate ? fromVbaDate(val.value) : (typeof val === 'number' ? fromVbaDate(val) : new Date(String(val)));
+                return this.formatDate(dateVal, fmt);
             }
-        });
-
-        this.env.set('savesetting', (app: string, section: string, key: string, setting: any) => {
-            if (!this.virtualRegistry[app]) this.virtualRegistry[app] = {};
-            if (!this.virtualRegistry[app][section]) this.virtualRegistry[app][section] = {};
-            this.virtualRegistry[app][section][key] = String(setting);
-        });
-
-        this.env.set('getsetting', (app: string, section: string, key: string, defaultValue: string = "") => {
-            return (this.virtualRegistry[app] && this.virtualRegistry[app][section] && this.virtualRegistry[app][section][key]) ?? defaultValue;
-        });
-
-        this.env.set('deletesetting', (app: string, section?: string, key?: string) => {
-            if (!this.virtualRegistry[app]) return;
-            if (section === undefined) {
-                delete this.virtualRegistry[app];
-            } else if (key === undefined) {
-                delete this.virtualRegistry[app][section];
-            } else {
-                delete this.virtualRegistry[app][section][key];
+            const isDatePattern = /y|m|d|h|n|s|am\/pm/i.test(fmt);
+            if (val instanceof VbaDate) return this.formatDate(fromVbaDate(val.value), fmt);
+            if (typeof val === 'number') {
+                if (isDatePattern && !/^[0#,.%]+$/.test(fmt)) return this.formatDate(fromVbaDate(val), fmt);
+                return this.formatNumber(val, fmt);
             }
+            return String(val);
         });
+        this.env.set('format$', this.env.get('format'));
 
-        this.env.set('getallsettings', (app: string, section: string) => {
-            if (!this.virtualRegistry[app] || !this.virtualRegistry[app][section]) return vbaEmpty;
-            const settings = this.virtualRegistry[app][section];
-            const result: string[][] = [];
-            for (const key in settings) {
-                result.push([key, settings[key]]);
-            }
-            return result;
+        // --- Date/Time Module ---
+        this.env.set('now', () => new VbaDate(toVbaDate(new Date())));
+        this.env.set('date', () => new VbaDate(Math.floor(toVbaDate(new Date()))));
+        this.env.set('time', () => {
+            const serial = toVbaDate(new Date());
+            return new VbaDate(serial - Math.floor(serial));
         });
+        this.env.set('timer', () => {
+            const now = new Date();
+            const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            return (now.getTime() - midnight.getTime()) / 1000;
+        });
+        this.env.set('year', (d: any) => parseVbaDate(d).getFullYear());
+        this.env.set('month', (d: any) => parseVbaDate(d).getMonth() + 1);
+        this.env.set('day', (d: any) => parseVbaDate(d).getDate());
+        this.env.set('hour', (d: any) => parseVbaDate(d).getHours());
+        this.env.set('minute', (d: any) => parseVbaDate(d).getMinutes());
+        this.env.set('second', (d: any) => parseVbaDate(d).getSeconds());
+        this.env.set('dateserial', (y: any, m: any, d: any) => new VbaDate(toVbaDate(new Date(Number(y), Number(m) - 1, Number(d)))));
+        this.env.set('timeserial', (h: any, n: any, s: any) => new VbaDate(toVbaDate(new Date(0, 0, 0, Number(h), Number(n), Number(s)))));
 
-        this.env.set('createobject', (progId: string) => {
-            return this.createExternalObject(progId);
-        });
-        this.env.set('getobject', (pathName?: any, class_?: any) => {
-            if (pathName === "" || pathName === null) {
-                return this.createExternalObject(class_ || "");
-            }
-            if (class_ !== undefined && (pathName === undefined || pathName === "")) {
-                return this.createExternalObject(class_);
-            }
-            // If pathName is provided, we would normally load a file, but for now we just throw
-            throw new Error(`Execution error: GetObject with PathName "${pathName}" not supported yet`);
-        });
-
+        // --- File System Module ---
         this.env.set('freefile', (range?: number) => {
             const start = (range === 1) ? 256 : 1;
             const end = (range === 1) ? 511 : 255;
-            for (let i = start; i <= end; i++) {
-                if (!this.fileHandles.has(i)) return i;
-            }
-            throw new Error("Execution error: Too many files");
+            for (let i = start; i <= end; i++) if (!this.fileHandles.has(i)) return i;
+            this.throwVbaError(67, "Too many files");
+        });
+        this.env.set('eof', (fn: any) => {
+            const h = this.fileHandles.get(Number(fn));
+            if (!h) this.throwVbaError(52, "Bad file name or number");
+            return h.pos! >= fs.statSync(h.path).size ? vbaTrue : vbaFalse;
+        });
+        this.env.set('lof', (fn: any) => {
+            const h = this.fileHandles.get(Number(fn));
+            if (!h) this.throwVbaError(52, "Bad file name or number");
+            return fs.statSync(h.path).size;
+        });
+        this.env.set('loc', (fn: any) => {
+            const h = this.fileHandles.get(Number(fn));
+            if (!h) this.throwVbaError(52, "Bad file name or number");
+            return h.pos;
+        });
+        this.env.set('seek', (fn: any) => {
+            const h = this.fileHandles.get(Number(fn));
+            if (!h) this.throwVbaError(52, "Bad file name or number");
+            return h.pos!;
         });
 
-        // File System functions
-        this.env.set('eof', (fileNum: number) => {
-            const handle = this.fileHandles.get(fileNum);
-            if (!handle) throw new Error(`Execution error: File number ${fileNum} not open`);
-            const stats = fs.fstatSync(handle.fd);
-            return handle.pos! >= stats.size;
-        });
-
-        this.env.set('lof', (fileNum: number) => {
-            const handle = this.fileHandles.get(fileNum);
-            if (!handle) throw new Error(`Execution error: File number ${fileNum} not open`);
-            const stats = fs.fstatSync(handle.fd);
-            return stats.size;
-        });
-
-        this.env.set('loc', (fileNum: number) => {
-            const handle = this.fileHandles.get(fileNum);
-            if (!handle) throw new Error(`Execution error: File number ${fileNum} not open`);
-            return handle.pos!;
-        });
-
-        this.env.set('seek', (fileNum: number) => {
-            const handle = this.fileHandles.get(fileNum);
-            if (!handle) throw new Error(`Execution error: File number ${fileNum} not open`);
-            return handle.pos!;
-        });
-
-        this.env.set('input', (count: number, fileNum: number) => {
-            const handle = this.fileHandles.get(fileNum);
-            if (!handle) throw new Error(`Execution error: File number ${fileNum} not open`);
-            const buf = Buffer.alloc(count);
-            const bytesRead = fs.readSync(handle.fd, buf, 0, count, handle.pos!);
-            handle.pos! += bytesRead;
-            return buf.toString('utf8', 0, bytesRead);
-        });
-        this.env.set('fileattr', (fileNumber: number, retType: number = 1) => {
-            return 0; // Mock
-        });
-
+        // --- Interaction Module ---
+        this.env.set('shell', (cmd: any, style: any = 1) => { this.onPrint(`[SHELL] ${cmd} (Style: ${style})`); return 1; });
+        this.env.set('msgbox', (msg: any, buttons: any = 0, title: any = "") => { this.onPrint(`[MSGBOX] ${title}: ${msg}`); return 1; });
+        this.env.set('inputbox', (prompt: any, title: any = "", def: any = "") => { this.onPrint(`[INPUTBOX] ${prompt}`); return def; });
+        this.env.set('appactivate', (title: string, wait?: boolean) => { this.onPrint(`[APPACTIVATE] ${title}`); });
+        this.env.set('sendkeys', (keys: string, wait?: boolean) => { this.onPrint(`[SENDKEYS] ${keys}`); });
         this.env.set('doevents', () => 0);
-        this.env.set('appactivate', (title: string, wait?: boolean) => {
-            this.print(`[Stub] AppActivate: ${title}`);
-        });
-        this.env.set('sendkeys', (keys: string, wait?: boolean) => {
-            this.print(`[Stub] SendKeys: ${keys}`);
-        });
 
-        // Add VBA intrinsic constants
-        this.env.set('true', vbaTrue);
-        this.env.set('false', vbaFalse);
-        this.env.set('empty', vbaEmpty);
-        this.env.set('nothing', vbaNothing);
-        this.env.set('null', vbaNull);
+        // --- Constants & Registry ---
+        const errorMessages: Record<number, string> = { 5: "Invalid procedure call or argument", 6: "Overflow", 9: "Subscript out of range", 11: "Division by zero", 13: "Type mismatch", 52: "Bad file name or number", 53: "File not found", 58: "File already exists", 62: "Input past end of file", 70: "Permission denied", 76: "Path not found", 91: "Object variable not set", 94: "Invalid use of Null" };
+        const errFunc = (n?: any) => errorMessages[n === undefined ? this.errObj.number : Number(n)] || "Error";
+        this.env.set('error', errFunc);
+        this.env.set('error$', errFunc);
+        this.env.set('vbempty', 0); this.env.set('vbnull', 1); this.env.set('vbinteger', 2); this.env.set('vblong', 3); this.env.set('vbsingle', 4); this.env.set('vbdouble', 5); this.env.set('vbcurrency', 6); this.env.set('vbdate', 7); this.env.set('vbstring', 8); this.env.set('vbobject', 9); this.env.set('vberror', 10); this.env.set('vbboolean', 11); this.env.set('vbvariant', 12); this.env.set('vbbyte', 17); this.env.set('vblonglong', 20); this.env.set('vbarray', 8192);
+        this.env.set('vbcrlf', "\r\n"); this.env.set('vbtab', "\t"); this.env.set('vbcr', "\r"); this.env.set('vblf', "\n");
+        this.env.set('true', vbaTrue); this.env.set('false', vbaFalse); this.env.set('empty', vbaEmpty); this.env.set('nothing', vbaNothing); this.env.set('null', vbaNull);
 
-
-
-        this.env.set('curdir', () => {
-            return this.sandbox.toVirtualPath(this.sandbox.getRoot());
-        });
-        this.env.set('curdir$', this.env.get('curdir'));
-
-        this.env.set('dir', (pathName?: string, attributes?: number) => {
-            if (pathName !== undefined && pathName !== null && pathName !== "") {
-                // Initialize iterator
-                try {
-                    const realPath = this.sandbox.toRealPath(pathName);
-                    
-                    const dirPath = path.dirname(realPath);
-                    const filter = path.basename(realPath);
-                    
-                    // Basic glob support: *.* or *.txt
-                    const files = fs.readdirSync(dirPath);
-                    if (filter === "*.*" || filter === "*" || filter === "") {
-                        this.dirIterator = files;
-                    } else {
-                        const regex = new RegExp('^' + filter.replace(/\./g, '\\.').replace(/\*/g, '.*').replace(/\?/g, '.') + '$', 'i');
-                        this.dirIterator = files.filter((f: string) => regex.test(f));
-                    }
-                    this.dirIndex = 0;
-                } catch (e) {
-                    this.dirIterator = [];
-                }
-            }
-            
-            if (!this.dirIterator || this.dirIndex >= this.dirIterator.length) {
-                return "";
-            }
-            return this.dirIterator[this.dirIndex++];
-        });
-        this.env.set('dir$', this.env.get('dir'));
-
-        this.env.set('kill', (pathName: string) => {
-            fs.unlinkSync(this.sandbox.toRealPath(pathName));
-        });
-
-        this.env.set('filecopy', (source: string, destination: string) => {
-            fs.copyFileSync(this.sandbox.toRealPath(source), this.sandbox.toRealPath(destination));
-        });
-
-        this.env.set('filelen', (pathName: string) => {
-            return fs.statSync(this.sandbox.toRealPath(pathName)).size;
-        });
-
-        this.env.set('mkdir', (vbaPath: string) => {
-            fs.mkdirSync(this.sandbox.toRealPath(vbaPath), { recursive: true });
-        });
-
-        this.env.set('rmdir', (vbaPath: string) => {
-            fs.rmdirSync(this.sandbox.toRealPath(vbaPath));
-        });
-
-        this.env.set('environ', (env: any) => {
-            return this.sandbox.getEnv(env);
-        });
+        this.env.set('environ', (k: any) => this.sandbox.getEnv(k));
         this.env.set('environ$', this.env.get('environ'));
-
-        this.env.set('shell', (pathname: string, windowstyle?: number) => {
-             this.onPrint(`[SHELL STUB] Executing: ${pathname} (Style: ${windowstyle || 1})`);
-             return 1;
-        });
-
-        // Weekday constants (vbSunday=1 ... vbSaturday=7)
-        this.env.set('vbsunday', 1);
-        this.env.set('vbmonday', 2);
-        this.env.set('vbtuesday', 3);
-        this.env.set('vbwednesday', 4);
-        this.env.set('vbthursday', 5);
-        this.env.set('vbfriday', 6);
-        this.env.set('vbsaturday', 7);
-        this.env.set('vbusesystemdayofweek', 0);
-
-        // --- DateTime extraction functions ---
-        this.env.set('year',   (d: any) => d === null ? null : parseVbaDate(d).getFullYear());
-        this.env.set('month',  (d: any) => d === null ? null : parseVbaDate(d).getMonth() + 1);
-        this.env.set('day',    (d: any) => d === null ? null : parseVbaDate(d).getDate());
-        this.env.set('hour',   (d: any) => d === null ? null : parseVbaDate(d).getHours());
-        this.env.set('minute', (d: any) => d === null ? null : parseVbaDate(d).getMinutes());
-        this.env.set('second', (d: any) => d === null ? null : parseVbaDate(d).getSeconds());
-
-        this.env.set('monthname', (month: any, abbreviate: any = false) => {
-            const m = parseInt(month);
-            if (m < 1 || m > 12) this.throwVbaError(5, "Invalid procedure call or argument");
-            const isAbbr = abbreviate === true || (abbreviate && abbreviate.valueOf && abbreviate.valueOf() !== 0);
-            const names = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-            const name = names[m - 1];
-            return isAbbr ? name.substring(0, 3) : name;
-        });
-
-        this.env.set('weekdayname', (weekday: any, abbreviate: any = false, firstDayOfWeek: any = 0) => {
-            const w = parseInt(weekday);
-            const isAbbr = abbreviate === true || (abbreviate && abbreviate.valueOf && abbreviate.valueOf() !== 0);
-            let fdw = parseInt(firstDayOfWeek);
-            if (isNaN(fdw) || fdw === 0) fdw = 1;
-            const names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-            const actualIdx = (w + fdw - 2) % 7;
-            const name = names[actualIdx];
-            return isAbbr ? name.substring(0, 3) : name;
-        });
-
-        this.env.set('weekday', (d: any, firstDay: number = 1) => {
-            if (d === null) return null;
-            const jsDay = parseVbaDate(d).getDay(); // 0=Sun
-            // VBA: firstDay=1(Sun)..7(Sat). JS getDay() 0=Sun..6=Sat
-            // Shift so that firstDay maps to 1
-            const offset = (firstDay <= 1) ? 0 : (firstDay - 1);
-            return ((jsDay - offset + 7) % 7) + 1;
-        });
-
-        // --- DateSerial / TimeSerial ---
-        this.env.set('dateserial', (year: number, month: number, day: number) => {
-            const d = new Date(year, month - 1, day);
-            if (year >= 0 && year <= 99) d.setFullYear(year); // preserve 2-digit years as-is
-            return toVbaDate(d);
-        });
-
-        this.env.set('timeserial', (hour: number, minute: number, second: number) => {
-            const totalSec = hour * 3600 + minute * 60 + second;
-            return totalSec / 86400; // fraction of a day
-        });
-
-        // --- DateValue / TimeValue ---
-        this.env.set('datevalue', (s: any) => {
-            if (s === null) return null;
-            const d = new Date(String(s));
-            if (isNaN(d.getTime())) throw new Error(`Execution error: Type mismatch: '${s}'`);
-            // Return date-only serial (strip time portion)
-            return Math.floor(toVbaDate(d));
-        });
-
-        this.env.set('timevalue', (s: any) => {
-            if (s === null) return null;
-            const d = new Date(`1970-01-01T${String(s)}`);
-            if (isNaN(d.getTime())) {
-                const d2 = new Date(String(s));
-                if (isNaN(d2.getTime())) throw new Error(`Execution error: Type mismatch: '${s}'`);
-                return toVbaDate(d2) % 1;
-            }
-            return (d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()) / 86400;
-        });
-
-        // --- DateAdd ---
-        // Add months/years with VBA's month-end clamping behavior
-        const addMonths = (d: Date, months: number): Date => {
-            const day = d.getDate();
-            const result = new Date(d);
-            result.setDate(1); // avoid overflow when changing month
-            result.setMonth(result.getMonth() + months);
-            // Clamp to last day of the resulting month
-            const lastDay = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
-            result.setDate(Math.min(day, lastDay));
-            return result;
-        };
-
-        this.env.set('dateadd', (interval: string, number: number, date: any) => {
-            const d = parseVbaDate(date);
-            const n = Math.round(number);
-            const iv = String(interval).toLowerCase();
-            let result: Date;
-            switch (iv) {
-                case 'yyyy': result = addMonths(d, n * 12); break;
-                case 'q':    result = addMonths(d, n * 3); break;
-                case 'm':    result = addMonths(d, n); break;
-                case 'y': case 'd': case 'w':
-                    result = new Date(d); result.setDate(result.getDate() + n); break;
-                case 'ww':
-                    result = new Date(d); result.setDate(result.getDate() + n * 7); break;
-                case 'h':
-                    result = new Date(d); result.setHours(result.getHours() + n); break;
-                case 'n':
-                    result = new Date(d); result.setMinutes(result.getMinutes() + n); break;
-                case 's':
-                    result = new Date(d); result.setSeconds(result.getSeconds() + n); break;
-                default: throw new Error('Execution error: Invalid procedure call or argument (DateAdd interval)');
-            }
-            return toVbaDate(result);
-        });
-
-        // --- DateDiff ---
-        this.env.set('datediff', (interval: string, date1: any, date2: any, firstDayOfWeek: number = 1) => {
-            const d1 = parseVbaDate(date1);
-            const d2 = parseVbaDate(date2);
-            const iv = String(interval).toLowerCase();
-            switch (iv) {
-                case 'yyyy': return d2.getFullYear() - d1.getFullYear();
-                case 'q':    return (d2.getFullYear() - d1.getFullYear()) * 4 +
-                                    Math.floor(d2.getMonth() / 3) - Math.floor(d1.getMonth() / 3);
-                case 'm':    return (d2.getFullYear() - d1.getFullYear()) * 12 +
-                                    (d2.getMonth() - d1.getMonth());
-                case 'y': case 'd': return Math.floor(toVbaDate(d2)) - Math.floor(toVbaDate(d1));
-                case 'w':    return Math.floor((toVbaDate(d2) - toVbaDate(d1)) / 7);
-                case 'ww': {
-                    // Count week boundaries between d1 and d2
-                    const offset = (firstDayOfWeek <= 1) ? 0 : firstDayOfWeek - 1;
-                    const adj1 = Math.floor((Math.floor(toVbaDate(d1)) - offset + 7) / 7);
-                    const adj2 = Math.floor((Math.floor(toVbaDate(d2)) - offset + 7) / 7);
-                    return adj2 - adj1;
-                }
-                case 'h': return Math.floor((d2.getTime() - d1.getTime()) / 3600000);
-                case 'n': return Math.floor((d2.getTime() - d1.getTime()) / 60000);
-                case 's': return Math.floor((d2.getTime() - d1.getTime()) / 1000);
-                default: throw new Error('Execution error: Invalid procedure call or argument (DateDiff interval)');
-            }
-        });
-
-        // --- DatePart ---
-        this.env.set('datepart', (interval: string, date: any, firstDayOfWeek: number = 1) => {
-            const d = parseVbaDate(date);
-            const iv = String(interval).toLowerCase();
-            switch (iv) {
-                case 'yyyy': return d.getFullYear();
-                case 'q':    return Math.floor(d.getMonth() / 3) + 1;
-                case 'm':    return d.getMonth() + 1;
-                case 'y':    return Math.floor(toVbaDate(d)) - Math.floor(toVbaDate(new Date(d.getFullYear(), 0, 1))) + 1;
-                case 'd':    return d.getDate();
-                case 'w': {
-                    const jsDay = d.getDay();
-                    const offset = (firstDayOfWeek <= 1) ? 0 : (firstDayOfWeek - 1);
-                    return ((jsDay - offset + 7) % 7) + 1;
-                }
-                case 'ww': return Math.ceil((Math.floor(toVbaDate(d)) - toVbaDate(new Date(d.getFullYear(), 0, 1)) + 1) / 7);
-                case 'h':  return d.getHours();
-                case 'n':  return d.getMinutes();
-                case 's':  return d.getSeconds();
-                default: throw new Error('Execution error: Invalid procedure call or argument (DatePart interval)');
-            }
-        });
-
-        // --- Now / Date / Time / Timer ---
-        this.env.set('now',   () => toVbaDate(new Date()));
-        this.env.set('date',  () => Math.floor(toVbaDate(new Date())));
-        this.env.set('date$', () => {
-            const d = new Date();
-            const mm = String(d.getMonth() + 1).padStart(2, '0');
-            const dd = String(d.getDate()).padStart(2, '0');
-            const yyyy = d.getFullYear();
-            return `${mm}-${dd}-${yyyy}`;
-        });
-        this.env.set('time',  () => {
-            const d = new Date();
-            return (d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()) / 86400;
-        });
-        this.env.set('time$', () => {
-            const d = new Date();
-            const hh = String(d.getHours()).padStart(2, '0');
-            const mm = String(d.getMinutes()).padStart(2, '0');
-            const ss = String(d.getSeconds()).padStart(2, '0');
-            return `${hh}:${mm}:${ss}`;
-        });
-        this.env.set('timer', () => {
-            const d = new Date();
-            return d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds() + d.getMilliseconds() / 1000;
-        });
-
-        // Add common Excel VBA constants
-        this.env.set('xlup', -4162);
-        this.env.set('xldown', -4121);
-        this.env.set('xltoleft', -4159);
-        this.env.set('xltoright', -4161);
-
-        // MsgBox constants
-        this.env.set('vbokonly', 0);
-        this.env.set('vboxcancel', 1);
-        this.env.set('vbabortretryignore', 2);
-        this.env.set('vbyesnocancel', 3);
-        this.env.set('vbyesno', 4);
-        this.env.set('vbretrycancel', 5);
-        this.env.set('vbcritical', 16);
-        this.env.set('vbquestion', 32);
-        this.env.set('vboxclamation', 48);
-        this.env.set('vbinformation', 64);
-        this.env.set('vbdefaultbutton1', 0);
-        this.env.set('vbdefaultbutton2', 256);
-
-        this.env.set('vbok', 1);
-        this.env.set('vbcancel', 2);
-        this.env.set('vbabort', 3);
-        this.env.set('vbretry', 4);
-        this.env.set('vbignore', 5);
-        this.env.set('vbyes', 6);
-        this.env.set('vbno', 7);
-
-        this.env.set('msgbox', (prompt: any, buttons: number = 0, title: string = "Microsoft Excel") => {
-            this.onPrint(`[MSGBOX] ${title}: ${prompt} (Buttons: ${buttons})`);
-            return 1; // vbOK
-        });
-
-        this.env.set('inputbox', (prompt: any, title: string = "Microsoft Excel", defaultVal: string = "") => {
-            this.onPrint(`[INPUTBOX] ${title}: ${prompt} (Default: ${defaultVal})`);
-            return defaultVal;
-        });
-
-        // Add VBA Err object
-        this.env.set('err', {
-            number: 0,
-            source: '',
-            description: '',
-            clear: function () { this.number = 0; this.source = ''; this.description = ''; },
-            raise: function (num: number, src?: string, desc?: string) {
-                this.number = num;
-                this.source = src || '';
-                this.description = desc || '';
-                throw { type: 'VbaError', number: num, message: desc || `VBA Error ${num}` };
-            }
-        });
-
+        this.env.set('createobject', (id: string) => this.createExternalObject(id));
+        this.env.set('iif', (c: any, t: any, f: any) => this.isTrue(c) ? t : f);
+        this.env.set('choose', (i: any, ...c: any[]) => { const idx = Math.floor(Number(i)); return (idx >= 1 && idx <= c.length) ? c[idx - 1] : vbaNull; });
+        this.env.set('switch', (...args: any[]) => { for (let i = 0; i < args.length; i += 2) if (this.isTrue(args[i])) return args[i + 1]; return vbaNull; });
+        this.env.set('array', (...args: any[]) => { const a = [...args]; (a as any).vbaBase = 0; return a; });
+        this.env.set('lbound', (a: any) => Array.isArray(a) ? ((a as any).vbaBase || 0) : 0);
+        this.env.set('ubound', (a: any) => Array.isArray(a) ? (((a as any).vbaBase || 0) + a.length - 1) : 0);
     }
 
     private print(msg: string) {
@@ -1955,6 +1161,23 @@ export class Evaluator {
             }
         }
         return result;
+    }
+
+    private toVbaNumber(val: any): number {
+        if (val === vbaEmpty || val === undefined) return 0;
+        if (val === vbaNull || val === null) this.throwVbaError(13, "Type mismatch");
+        if (val instanceof VbaBoolean) return val.value;
+        if (val instanceof VbaDate) return val.value;
+        if (val instanceof VbaDecimal) return val.value;
+        if (typeof val === 'number') return val;
+        if (typeof val === 'bigint') return Number(val);
+        if (typeof val === 'string') {
+            const n = parseFloat(val);
+            if (isNaN(n)) this.throwVbaError(13, "Type mismatch");
+            return n;
+        }
+        if (val instanceof VbaErrorValue) this.throwVbaError(13, "Type mismatch");
+        return Number(val);
     }
 
     private vbaRound(val: number, decimals: number = 0): number {
@@ -2813,17 +2036,82 @@ export class Evaluator {
         } else if (id === 'scripting.filesystemobject') {
             return {
                 __isVbaFso__: true,
-                fileexists: (path: string) => vbaFalse,
-                folderexists: (path: string) => vbaFalse,
-                createtextfile: (path: string) => ({
-                    write: (s: string) => this.onPrint(`[FSO Write] ${path}: ${s}`),
-                    writeline: (s: string) => this.onPrint(`[FSO WriteLine] ${path}: ${s}`),
-                    close: () => {}
-                }),
-                opentextfile: (path: string) => ({
-                    readall: () => "",
-                    close: () => {}
-                })
+                fileexists: (p: string) => {
+                    try {
+                        const full = this.sandbox.resolve(p);
+                        return (fs.existsSync(full) && fs.statSync(full).isFile()) ? vbaTrue : vbaFalse;
+                    } catch { return vbaFalse; }
+                },
+                folderexists: (p: string) => {
+                    try {
+                        const full = this.sandbox.resolve(p);
+                        return (fs.existsSync(full) && fs.statSync(full).isDirectory()) ? vbaTrue : vbaFalse;
+                    } catch { return vbaFalse; }
+                },
+                createtextfile: (p: string, overwrite: boolean = true) => {
+                    const full = this.sandbox.resolve(p);
+                    if (!overwrite && fs.existsSync(full)) this.throwVbaError(58, "File already exists");
+                    const fd = fs.openSync(full, 'w');
+                    return {
+                        write: (s: string) => fs.writeSync(fd, s),
+                        writeline: (s: string) => fs.writeSync(fd, s + "\r\n"),
+                        close: () => fs.closeSync(fd)
+                    };
+                },
+                opentextfile: (p: string, iomode: number = 1) => {
+                    const full = this.sandbox.resolve(p);
+                    const mode = iomode === 1 ? 'r' : (iomode === 2 ? 'w' : 'a');
+                    const fd = fs.openSync(full, mode);
+                    let pos = 0;
+                    return {
+                        readall: () => {
+                            const content = fs.readFileSync(full, 'utf8');
+                            return content;
+                        },
+                        readline: () => {
+                            // Simple readline implementation
+                            const content = fs.readFileSync(full, 'utf8');
+                            const lines = content.slice(pos).split(/\r?\n/);
+                            if (lines.length > 0) {
+                                const line = lines[0];
+                                pos += line.length + (content[pos + line.length] === '\r' ? 2 : 1);
+                                return line;
+                            }
+                            return "";
+                        },
+                        write: (s: string) => fs.writeSync(fd, s),
+                        close: () => fs.closeSync(fd)
+                    };
+                },
+                createfolder: (p: string) => {
+                    const full = this.sandbox.resolve(p);
+                    fs.mkdirSync(full, { recursive: true });
+                    return { path: p };
+                },
+                deletefile: (p: string) => {
+                    const full = this.sandbox.resolve(p);
+                    fs.unlinkSync(full);
+                },
+                deletefolder: (p: string) => {
+                    const full = this.sandbox.resolve(p);
+                    fs.rmSync(full, { recursive: true, force: true });
+                },
+                getfile: (p: string) => {
+                    const full = this.sandbox.resolve(p);
+                    const stats = fs.statSync(full);
+                    return {
+                        path: p,
+                        size: stats.size,
+                        datecreated: new VbaDate(toVbaDate(stats.birthtime)),
+                        datelastmodified: new VbaDate(toVbaDate(stats.mtime)),
+                        attributes: stats.mode
+                    };
+                },
+                getfolder: (p: string) => ({ path: p }),
+                getbasename: (p: string) => path.basename(p),
+                getextensionname: (p: string) => path.extname(p).replace('.', ''),
+                getparentfoldername: (p: string) => path.dirname(p),
+                getabsolutepathname: (p: string) => p // already handled by sandbox resolve internally
             };
         }
         throw new Error(`Execution error: Unsupported CreateObject '${progId}'`);

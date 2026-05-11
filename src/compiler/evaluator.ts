@@ -22,6 +22,7 @@ import {
     SetStatement,
     EraseStatement,
     ReDimStatement,
+    ArrayBound,
     ExitStatement,
     OnErrorStatement,
     TypeDeclaration,
@@ -748,6 +749,16 @@ export class Evaluator {
             if (!h) this.throwVbaError(52, "Bad file name or number");
             return h.pos!;
         });
+        this.env.set('fileattr', (fn: any, info: any = 1) => {
+            console.log(`[STUB] FileAttr #${fn}, ${info}`);
+            return 1; // Default to Normal
+        });
+        this.env.set('chdrive', (drive: any) => {
+            console.log(`[STUB] ChDrive "${drive}"`);
+        });
+        this.env.set('setattr', (path: any, attr: any) => {
+            console.log(`[STUB] SetAttr "${path}", ${attr}`);
+        });
         this.env.set('filedatetime', (path: any) => {
             const realPath = this.sandbox.toRealPath(String(path));
             const stats = fs.statSync(realPath);
@@ -936,8 +947,32 @@ export class Evaluator {
         this.env.set('choose', (i: any, ...c: any[]) => { const idx = Math.floor(Number(i)); return (idx >= 1 && idx <= c.length) ? c[idx - 1] : vbaNull; });
         this.env.set('switch', (...args: any[]) => { for (let i = 0; i < args.length; i += 2) if (this.isTrue(args[i])) return args[i + 1]; return vbaNull; });
         this.env.set('array', (...args: any[]) => { const a = [...args]; (a as any).vbaBase = 0; return a; });
-        this.env.set('lbound', (a: any) => Array.isArray(a) ? ((a as any).vbaBase || 0) : 0);
-        this.env.set('ubound', (a: any) => Array.isArray(a) ? (((a as any).vbaBase || 0) + a.length - 1) : 0);
+        this.env.set('lbound', (a: any, dim: any = 1) => {
+            if (!Array.isArray(a)) return 0;
+            const dimIndex = Number(dim) - 1;
+            if ((a as any).__vbaDimensions__ && dimIndex >= 0 && dimIndex < (a as any).__vbaDimensions__.length) {
+                return (a as any).__vbaDimensions__[dimIndex].lower;
+            }
+            let current = a;
+            for (let i = 0; i < dimIndex; i++) {
+                if (Array.isArray(current) && current.length > 0) current = current[0];
+                else this.throwVbaError(9, "Subscript out of range");
+            }
+            return (current as any).vbaBase || 0;
+        });
+        this.env.set('ubound', (a: any, dim: any = 1) => {
+            if (!Array.isArray(a)) return 0;
+            const dimIndex = Number(dim) - 1;
+            if ((a as any).__vbaDimensions__ && dimIndex >= 0 && dimIndex < (a as any).__vbaDimensions__.length) {
+                return (a as any).__vbaDimensions__[dimIndex].upper;
+            }
+            let current = a;
+            for (let i = 0; i < dimIndex; i++) {
+                if (Array.isArray(current) && current.length > 0) current = current[0];
+                else this.throwVbaError(9, "Subscript out of range");
+            }
+            return ((current as any).vbaBase || 0) + current.length - 1;
+        });
 
         // --- Registry Module ---
         this.env.set('savesetting', (app: string, sec: string, key: string, val: any) => {
@@ -1837,11 +1872,8 @@ export class Evaluator {
                 }
             }
             if (decl.isArray) {
-                if (decl.arraySize) {
-                    const size = this.evaluateExpression(decl.arraySize);
-                    const count = size - this.arrayBase + 1;
-                    initialValue = new Array(count).fill(vbaEmpty);
-                    (initialValue as any).vbaBase = this.arrayBase;
+                if (decl.arrayBounds && decl.arrayBounds.length > 0) {
+                    initialValue = this.createMultiDimArray(decl.arrayBounds, initialValue);
                 } else {
                     initialValue = [];
                     (initialValue as any).vbaBase = this.arrayBase;
@@ -2608,14 +2640,65 @@ export class Evaluator {
         this.env.set(stmt.name.name, []);
     }
 
+    private createMultiDimArray(bounds: ArrayBound[], initialValue: any): any[] {
+        const dimensions: { lower: number, upper: number }[] = [];
+        
+        for (const bound of bounds) {
+            const upper = Number(this.evaluateExpression(bound.upper));
+            const lower = bound.lower ? Number(this.evaluateExpression(bound.lower)) : this.arrayBase;
+            dimensions.push({ lower, upper });
+        }
+
+        const buildArray = (dimIdx: number): any[] => {
+            const { lower, upper } = dimensions[dimIdx];
+            const count = upper - lower + 1;
+            if (count < 0) throw new Error("Execution error: Subscript out of range");
+
+            const arr = new Array(count);
+            if (dimIdx < dimensions.length - 1) {
+                for (let i = 0; i < count; i++) {
+                    arr[i] = buildArray(dimIdx + 1);
+                }
+            } else {
+                arr.fill(initialValue);
+            }
+            return arr;
+        };
+
+        const result = buildArray(0);
+        (result as any).__vbaDimensions__ = dimensions;
+        (result as any).vbaBase = dimensions[0].lower; // Fallback for 1D code
+        return result;
+    }
+
+    private copyPreservedData(oldArr: any, newArr: any, dimensions: { lower: number, upper: number }[], dimIdx: number = 0) {
+        if (!Array.isArray(oldArr) || !Array.isArray(newArr)) return;
+
+        const copyLen = Math.min(oldArr.length, newArr.length);
+
+        if (dimIdx < dimensions.length - 1) {
+            for (let i = 0; i < copyLen; i++) {
+                this.copyPreservedData(oldArr[i], newArr[i], dimensions, dimIdx + 1);
+            }
+        } else {
+            for (let i = 0; i < copyLen; i++) {
+                newArr[i] = oldArr[i];
+            }
+        }
+    }
+
     private evaluateReDimStatement(stmt: ReDimStatement) {
-        // Evaluate bounds (just size for 1D for now)
+        const varName = stmt.name.name;
+        const oldArr = stmt.isPreserve ? this.env.get(varName) : null;
+
         if (stmt.bounds.length > 0) {
-            const size = this.evaluateExpression(stmt.bounds[stmt.bounds.length - 1]); // naive: takes last bound as size
-            const count = size - this.arrayBase + 1;
-            const arr = new Array(count).fill(0); // VBA numeric arrays default to 0
-            (arr as any).vbaBase = this.arrayBase;
-            this.env.set(stmt.name.name, arr);
+            const arr = this.createMultiDimArray(stmt.bounds, 0);
+
+            if (stmt.isPreserve && Array.isArray(oldArr)) {
+                this.copyPreservedData(oldArr, arr, (arr as any).__vbaDimensions__);
+            }
+
+            this.env.set(varName, arr);
         }
     }
 
@@ -2657,6 +2740,8 @@ export class Evaluator {
                 return (expr as NumberLiteral).value;
             case 'StringLiteral':
                 return (expr as StringLiteral).value;
+            case 'AddressOfExpression':
+                return (expr as AddressOfExpression).procedureName.name;
             case 'DateLiteral':
                 return this.evaluateDateLiteral(expr as DateLiteral);
             case 'Identifier':

@@ -43,7 +43,7 @@
 |------|------|--------|
 | ✅ | P0 | Local Variable Declarations (`Dim`) | §5.4.3.1 |
 | ✅ | P0 | Local Constant Declarations (`Const`) | §5.4.3.2 |
-| ⚠️ | P1 | ReDim Statement（`Preserve` は簡易実装） | §5.4.3.3 |
+| ✅ | P1 | ReDim Statement | §5.4.3.3 |
 | ✅ | P1 | Erase Statement | §5.4.3.4 |
 | ✅ | P1 | Mid Statement（代入形式: `Mid(str, n) = val`） | §5.4.3.5 |
 | ✅ | P2 | MidB / Mid$ / MidB$ Statement | §5.4.3.5 |
@@ -83,7 +83,7 @@
 | ✅ | P0 | Sub / Function 宣言 | §5.3.1.6 |
 | ✅ | P0 | Parameter Lists（ByVal, ByRef, Optional, ParamArray） | §5.3.1.5 |
 | ✅ | P0 | Property Get / Let / Set 宣言 | §5.3.1.7 |
-| ❌ | P2 | Event Handler 宣言 | §5.3.1.8 |
+| ✅ | P2 | Event Handler 宣言 | §5.3.1.8 |
 | ✅ | P0 | Variable Declarations（`Dim`） | §5.2.3.1 |
 | ✅ | P1 | Public / Private / Friend スコープ制御（パースのみ、アクセス制御なし） | §5.2.3.1 / §5.3.1.1 |
 | ✅ | P1 | Static キーワード（変数・プロシージャ） | §5.3.1.2 |
@@ -118,7 +118,7 @@
 | ✅ | P1 | Imp 演算子 | §5.6.9.8.6 | (制限事項: 同上) |
 | ✅ | P1 | TypeOf…Is 式 | §5.6.7 |
 | ✅ | P1 | Dictionary Access 式（`!` 演算子） | §5.6.14 |
-| ❌ | P2 | AddressOf 式 | §5.6.16.8 |
+| ✅ | P2 | AddressOf 式 | §5.6.16.8 |
 
 ## 第6章：標準ライブラリ — 変換関数 Conversion Module (§6.1.2.3)
 
@@ -269,7 +269,7 @@
 | ✅ | P2 | CurDir / CurDir$ | §6.1.2.5.1.1 |
 | ✅ | P2 | Dir | §6.1.2.5.1.2 |
 | ✅ | P2 | EOF | §6.1.2.5.1.3 |
-| ❌ | P2 | FileAttr | §6.1.2.5.1.4 |
+| ✅ | P2 | FileAttr | §6.1.2.5.1.4 | (制限事項: スタブ化) |
 | ✅ | P2 | FileDateTime | §6.1.2.5.1.5 |
 | ✅ | P2 | FileLen | §6.1.2.5.1.6 |
 | ✅ | P1 | FreeFile | §6.1.2.5.1.7 |
@@ -277,12 +277,12 @@
 | ✅ | P2 | LOF | §6.1.2.5.1.9 |
 | ✅ | P2 | Seek | §6.1.2.5.1.10 |
 | ✅ | P2 | ChDir | §6.1.2.5.2.1 |
-| ❌ | P2 | ChDrive | §6.1.2.5.2.2 |
+| ✅ | P2 | ChDrive | §6.1.2.5.2.2 | (制限事項: スタブ化) |
 | ✅ | P2 | FileCopy | §6.1.2.5.2.3 |
 | ✅ | P2 | Kill | §6.1.2.5.2.4 |
 | ✅ | P2 | MkDir | §6.1.2.5.2.5 |
 | ✅ | P2 | RmDir | §6.1.2.5.2.6 |
-| ❌ | P2 | SetAttr | §6.1.2.5.2.7 |
+| ✅ | P2 | SetAttr | §6.1.2.5.2.7 | (制限事項: スタブ化) |
 
 ## 第6章：標準ライブラリ — 財務 Financial Module (§6.1.2.6)
 
@@ -320,9 +320,9 @@
 | ✅ | P1 | Clear | §6.1.3.2.1.1 |
 | ✅ | P1 | Raise | §6.1.3.2.1.2 |
 | ✅ | P1 | Description | §6.1.3.2.2.1 |
-| ❌ | P2 | HelpContext | §6.1.3.2.2.2 |
-| ❌ | P2 | HelpFile | §6.1.3.2.2.3 |
-| ❌ | P2 | LastDllError | §6.1.3.2.2.4 |
+| ✅ | P2 | HelpContext | §6.1.3.2.2.2 |
+| ✅ | P2 | HelpFile | §6.1.3.2.2.3 |
+| ✅ | P2 | LastDllError | §6.1.3.2.2.4 |
 | ✅ | P1 | Number | §6.1.3.2.2.5 |
 | ✅ | P1 | Source | §6.1.3.2.2.6 |
 

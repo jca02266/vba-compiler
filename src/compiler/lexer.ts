@@ -109,6 +109,7 @@ export enum TokenType {
     KeywordSendKeys,
     KeywordMid,
     KeywordWidth,
+    KeywordAddressOf,
     OperatorHash,
     OperatorPlus,
     OperatorMinus,
@@ -553,6 +554,7 @@ export class Lexer {
                 if (lowerId === 'midb') return { type: TokenType.KeywordMid, value: idStr, line: this.line };
                 if (lowerId === 'midb$') return { type: TokenType.KeywordMid, value: idStr, line: this.line };
                 if (lowerId === 'width') return { type: TokenType.KeywordWidth, value: idStr, line: this.line };
+                if (lowerId === 'addressof') return { type: TokenType.KeywordAddressOf, value: idStr, line: this.line };
 
                 return { type: TokenType.Identifier, value: idStr, line: this.line };
             }

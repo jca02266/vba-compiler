@@ -113,10 +113,15 @@ export interface ProcedureDeclaration extends Statement {
     moduleName?: string;
 }
 
+export interface ArrayBound {
+    lower?: Expression;
+    upper: Expression;
+}
+
 export interface VariableDeclarator {
     name: Identifier;
     isArray: boolean;
-    arraySize?: Expression;
+    arrayBounds?: ArrayBound[];
     isNew: boolean;
     isWithEvents: boolean;
     objectType?: string;
@@ -315,7 +320,13 @@ export interface DeclareStatement extends Statement {
 export interface ReDimStatement extends Statement {
     type: 'ReDimStatement';
     name: Identifier;
-    bounds: Expression[]; // Multi-dimensional bounds (e.g. 1 To numDays)
+    bounds: ArrayBound[]; // Multi-dimensional bounds (e.g. 1 To numDays)
+    isPreserve: boolean;
+}
+
+export interface AddressOfExpression extends Expression {
+    type: 'AddressOfExpression';
+    procedureName: Identifier;
 }
 
 export interface ErrorStatement extends Statement {
@@ -1174,14 +1185,26 @@ export class Parser {
             const name: Identifier = { type: 'Identifier', name: idToken.value };
 
             let isArray = false;
-            let arraySize: Expression | undefined;
+            let arrayBounds: ArrayBound[] | undefined;
             let isNew = false;
             let objectType: string | undefined;
 
             if (this.match(TokenType.OperatorLParen)) {
                 isArray = true;
                 if (this.peek().type !== TokenType.OperatorRParen) {
-                    arraySize = this.parseExpression();
+                    arrayBounds = [];
+                    while (true) {
+                        let lower: Expression | undefined;
+                        let upper = this.parseExpression();
+                        if (this.match(TokenType.KeywordTo)) {
+                            lower = upper;
+                            upper = this.parseExpression();
+                        }
+                        arrayBounds.push({ lower, upper });
+                        if (!this.match(TokenType.OperatorComma)) {
+                            break;
+                        }
+                    }
                 }
                 this.match(TokenType.OperatorRParen);
             }
@@ -1196,7 +1219,7 @@ export class Parser {
                 }
             }
 
-            declarations.push({ name, isArray, arraySize, isNew, isWithEvents, objectType });
+            declarations.push({ name, isArray, arrayBounds, isNew, isWithEvents, objectType });
 
             if (this.match(TokenType.OperatorComma)) {
                 continue;
@@ -1301,20 +1324,30 @@ export class Parser {
     private parseReDimStatement(): ReDimStatement {
         this.advance(); // 'ReDim'
 
+        let isPreserve = false;
         // Optional 'Preserve' keyword
         if (this.peek().type === TokenType.Identifier && this.peek().value.toLowerCase() === 'preserve') {
+            isPreserve = true;
             this.advance();
         }
 
         const idToken = this.advance();
         const name = { type: 'Identifier', name: idToken.value } as Identifier;
-        const bounds: Expression[] = [];
+        const bounds: ArrayBound[] = [];
 
         if (this.match(TokenType.OperatorLParen)) {
             if (this.peek().type !== TokenType.OperatorRParen) {
-                bounds.push(this.parseExpression());
-                while (this.match(TokenType.KeywordTo) || this.match(TokenType.OperatorComma)) {
-                    bounds.push(this.parseExpression());
+                while (true) {
+                    let lower: Expression | undefined;
+                    let upper = this.parseExpression();
+                    if (this.match(TokenType.KeywordTo)) {
+                        lower = upper;
+                        upper = this.parseExpression();
+                    }
+                    bounds.push({ lower, upper });
+                    if (!this.match(TokenType.OperatorComma)) {
+                        break;
+                    }
                 }
             }
             this.match(TokenType.OperatorRParen);
@@ -1322,9 +1355,10 @@ export class Parser {
 
         if (this.match(TokenType.KeywordAs)) {
             this.advance();
+            this.advance(); // type
         }
 
-        return { type: 'ReDimStatement', name, bounds };
+        return { type: 'ReDimStatement', name, bounds, isPreserve };
     }
 
     private parseTypeDeclaration(): TypeDeclaration {
@@ -2039,6 +2073,9 @@ export class Parser {
             expr = { type: 'DateLiteral', value: token.value } as DateLiteral;
         } else if (token.type === TokenType.Identifier || token.type === TokenType.KeywordMid) {
             expr = { type: 'Identifier', name: token.value } as Identifier;
+        } else if (token.type === TokenType.KeywordAddressOf) {
+            const procName = this.consume(TokenType.Identifier, "Expected procedure name after 'AddressOf'");
+            expr = { type: 'AddressOfExpression', procedureName: { type: 'Identifier', name: procName.value } } as AddressOfExpression;
         } else if (token.type === TokenType.KeywordEmpty) {
             expr = { type: 'Identifier', name: token.value } as Identifier;
         } else if (token.type === TokenType.KeywordNothing) {

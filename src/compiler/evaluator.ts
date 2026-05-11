@@ -434,10 +434,25 @@ export class Evaluator {
             if (val === null || val === vbaNull || val === vbaEmpty) return "";
             const fmt = pattern ? String(pattern) : "";
             if (fmt === "") return String(val);
+
+            const fmtLower = fmt.toLowerCase();
+            const namedFormats = ['general number', 'currency', 'fixed', 'standard', 'percent', 'scientific', 'true/false', 'yes/no', 'on/off'];
+            
+            if (namedFormats.includes(fmtLower)) {
+                if (typeof val === 'number') return this.formatNumber(val, fmt);
+                return String(val);
+            }
+
+            // If pattern looks like a date pattern, treat number as a date
+            const isDatePattern = /y|m|d|h|n|s|am\/pm/i.test(fmt);
+
             if (val instanceof VbaDate) {
                 return this.formatDate(fromVbaDate(val.value), fmt);
             }
             if (typeof val === 'number') {
+                if (isDatePattern && !/^[0#,.%]+$/.test(fmt)) {
+                     return this.formatDate(fromVbaDate(val), fmt);
+                }
                 return this.formatNumber(val, fmt);
             }
             return String(val);
@@ -486,11 +501,12 @@ export class Evaluator {
             }
             return idx === -1 ? 0 : idx + 1;
         });
-        this.env.set('strcomp', (s1: any, s2: any, compare: number = 0) => {
+        this.env.set('strcomp', (s1: any, s2: any, compare?: number) => {
             if (s1 === vbaNull || s2 === vbaNull) return vbaNull;
             let str1 = String(s1 ?? '');
             let str2 = String(s2 ?? '');
-            if (compare === 1) { // vbTextCompare
+            const isText = (compare === 1) || (compare === undefined && this.comparisonMode === 'Text');
+            if (isText) {
                 str1 = str1.toLowerCase();
                 str2 = str2.toLowerCase();
             }
@@ -572,6 +588,11 @@ export class Evaluator {
         });
         this.env.set('cstr', (val: any) => String(val === null ? '' : val));
         this.env.set('cbool', (val: any) => this.isTrue(val) ? vbaTrue : vbaFalse);
+        this.env.set('cbyte', (val: any) => {
+            const n = this.vbaRound(parseFloat(val));
+            if (n < 0 || n > 255) this.throwVbaError(6, "Overflow");
+            return n;
+        });
         this.env.set('fix', (val: any) => {
             if (val === vbaNull) return vbaNull;
             const n = parseFloat(val);
@@ -2959,37 +2980,54 @@ export class Evaluator {
     }
 
     private formatDate(d: Date, pattern: string): string {
-        let result = pattern;
-        // Replace patterns from longest to shortest to avoid partial matches
-        const replacements: [string | RegExp, string][] = [
-            ['yyyy', String(d.getFullYear())],
-            ['yy', String(d.getFullYear()).slice(-2)],
-            ['mmmm', d.toLocaleString('en-US', { month: 'long' })],
-            ['mmm', d.toLocaleString('en-US', { month: 'short' })],
-            ['mm', String(d.getMonth() + 1).padStart(2, '0')],
-            ['m', String(d.getMonth() + 1)],
-            ['dddd', d.toLocaleString('en-US', { weekday: 'long' })],
-            ['ddd', d.toLocaleString('en-US', { weekday: 'short' })],
-            ['dd', String(d.getDate()).padStart(2, '0')],
-            ['d', String(d.getDate())],
-            ['hh', String(d.getHours()).padStart(2, '0')],
-            ['h', String(d.getHours())],
-            ['nn', String(d.getMinutes()).padStart(2, '0')],
-            ['n', String(d.getMinutes())],
-            ['ss', String(d.getSeconds()).padStart(2, '0')],
-            ['s', String(d.getSeconds())],
-        ];
+        const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        const monthsShort = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        const daysShort = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-        for (const [p, r] of replacements) {
-            result = result.replace(new RegExp(String(p), 'g'), r);
-        }
-        return result;
+        return pattern.replace(/yyyy|yy|mmmm|mmm|mm|m|dddd|ddd|dd|d|hh|h|nn|n|ss|s|AM\/PM|am\/pm/g, (match) => {
+            const mLower = match.toLowerCase();
+            switch (mLower) {
+                case 'yyyy': return String(d.getFullYear());
+                case 'yy': return String(d.getFullYear()).slice(-2);
+                case 'mmmm': return months[d.getMonth()];
+                case 'mmm': return monthsShort[d.getMonth()];
+                case 'mm': return String(d.getMonth() + 1).padStart(2, '0');
+                case 'm': return String(d.getMonth() + 1);
+                case 'dddd': return days[d.getDay()];
+                case 'ddd': return daysShort[d.getDay()];
+                case 'dd': return String(d.getDate()).padStart(2, '0');
+                case 'd': return String(d.getDate());
+                case 'hh': return String(d.getHours()).padStart(2, '0');
+                case 'h': return String(d.getHours());
+                case 'nn': return String(d.getMinutes()).padStart(2, '0');
+                case 'n': return String(d.getMinutes());
+                case 'ss': return String(d.getSeconds()).padStart(2, '0');
+                case 's': return String(d.getSeconds());
+                case 'am/pm': return d.getHours() >= 12 ? (match === 'AM/PM' ? 'PM' : 'pm') : (match === 'AM/PM' ? 'AM' : 'am');
+                default: return match;
+            }
+        });
     }
 
     private formatNumber(n: number, pattern: string): string {
-        // Very basic implementation: handle "0.00", "0", "#,##0" etc.
+        // Handle named formats
+        switch (pattern.toLowerCase()) {
+            case 'general number': return String(n);
+            case 'currency': return n.toLocaleString(undefined, { style: 'currency', currency: 'USD' });
+            case 'fixed': return n.toFixed(2);
+            case 'standard': return n.toLocaleString(undefined, { minimumFractionDigits: 2 });
+            case 'percent': return (n * 100).toFixed(2) + '%';
+            case 'scientific': return n.toExponential(2);
+            case 'true/false': return n !== 0 ? 'True' : 'False';
+            case 'yes/no': return n !== 0 ? 'Yes' : 'No';
+            case 'on/off': return n !== 0 ? 'On' : 'Off';
+        }
+
+        // Basic custom patterns
         if (pattern.includes('.')) {
-            const decimalPlaces = (pattern.split('.')[1] || '').length;
+            const parts = pattern.split('.');
+            const decimalPlaces = parts[1].length;
             return n.toLocaleString(undefined, {
                 minimumFractionDigits: decimalPlaces,
                 maximumFractionDigits: decimalPlaces,

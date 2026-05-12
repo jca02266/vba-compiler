@@ -7,11 +7,11 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { Lexer } from '../../src/compiler/lexer';
-import { Parser } from '../../src/compiler/parser';
-import { Evaluator } from '../../src/compiler/evaluator';
-import { MockApplication } from '../../src/compiler/mock/MockWorksheet';
-import { assert } from '../ts/test-runner';
+import { Lexer } from '../../../src/compiler/lexer';
+import { Parser } from '../../../src/compiler/parser';
+import { Evaluator } from '../../../src/compiler/evaluator';
+import { MockApplication } from '../../../src/compiler/mock/MockWorksheet';
+import { assert } from '../../../tests/ts/test-runner';
 
 // ============================================================
 // ユーティリティ：VBA ファイルを読み込む
@@ -20,7 +20,7 @@ import { assert } from '../ts/test-runner';
 function readVbaFile(filename: string): string {
   const filepath = path.join(
     __dirname,
-    '../../sample/src/vba',
+    '../../src/vba',
     filename
   );
   return fs.readFileSync(filepath, 'utf-8');

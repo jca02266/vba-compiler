@@ -18,6 +18,7 @@ import {
     CallStatement,
     CallExpression,
     MemberExpression,
+    ParenthesizedExpression,
     ConstDeclaration,
     SetStatement,
     EraseStatement,
@@ -3111,6 +3112,8 @@ export class Evaluator {
                 return this.evaluateBinaryExpression(expr as BinaryExpression);
             case 'ImplicitWithObjectExpression':
                 return this.evaluateImplicitWithObjectExpression(expr as ImplicitWithObjectExpression);
+            case 'ParenthesizedExpression':
+                return this.evaluateExpression((expr as ParenthesizedExpression).expression);
             case 'NewExpression':
                 return this.instantiateClass((expr as NewExpression).className);
             default:
@@ -3156,7 +3159,7 @@ export class Evaluator {
                 const localEnv = new Environment(this.env);
 
                 // Map arguments to parameters
-                const byRefArgs: { paramName: string, identifierName: string }[] = [];
+                const byRefArgs: { paramName: string, originalExpr: Expression }[] = [];
                 const namedArgs = new Map<string, any>();
                 const positionalArgs: any[] = [];
 
@@ -3190,14 +3193,15 @@ export class Evaluator {
                     } else {
                         argVal = param.isOptional ? vbaMissing : 0;
                     }
-                    localEnv.set(param.name, argVal);
+                    localEnv.setLocally(param.name, argVal);
 
-                    // ByRef handling (only for positional for now to keep it simple, or named if possible)
-                    if (i < expr.args.length && expr.args[i].type === 'Identifier') {
+                    // ByRef handling
+                    if (i < expr.args.length) {
+                        const argExpr = expr.args[i];
                         if (!param.isByVal) {
                             byRefArgs.push({
                                 paramName: param.name,
-                                identifierName: (expr.args[i] as Identifier).name
+                                originalExpr: argExpr
                             });
                         }
                     }
@@ -3246,7 +3250,11 @@ export class Evaluator {
                 // Synchronize ByRef arguments back to caller scope
                 for (const ref of byRefArgs) {
                     const updatedVal = localEnv.get(ref.paramName);
-                    this.env.setLocally(ref.identifierName, updatedVal);
+                    try {
+                        this.evaluateAssignmentToVariable(ref.originalExpr, updatedVal);
+                    } catch {
+                        // If it's an r-value (like a function call, literal, or expression), VBA silently discards the ByRef update
+                    }
                 }
 
                 if (proc.isFunction) {

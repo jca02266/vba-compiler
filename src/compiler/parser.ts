@@ -406,6 +406,11 @@ export interface CallStatement extends Statement {
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface Expression extends ASTNode { }
 
+export interface ParenthesizedExpression extends Expression {
+    type: 'ParenthesizedExpression';
+    expression: Expression;
+}
+
 export interface CallExpression extends Expression {
     type: 'CallExpression';
     callee: Expression;
@@ -2145,10 +2150,11 @@ export class Parser {
             }
             expr = { type: 'NewExpression', className: classNameToken.value } as NewExpression;
         } else if (token.type === TokenType.OperatorLParen) {
-            expr = this.parseExpression();
+            const innerExpr = this.parseExpression();
             if (!this.match(TokenType.OperatorRParen)) {
                 throw new Error(`Parse error: Expected ')' at line ${this.peek().line} `);
             }
+            expr = { type: 'ParenthesizedExpression', expression: innerExpr } as any; // Type added implicitly or via cast
         } else if (token.type === TokenType.KeywordTypeOf) {
             expr = this.parseRelational(); // Stop before 'Is'
             if (!this.match(TokenType.KeywordIs)) {

@@ -1,5 +1,4 @@
 import * as path from 'path';
-import * as fs from 'fs';
 
 /**
  * VBA File System Sandbox Path Resolver
@@ -9,32 +8,14 @@ export class SandboxPath {
     private root: string;
     private env: Map<string, string> = new Map();
 
-    constructor(root: string = 'workspace', initialEnv: Record<string, string> = {}) {
-        // Resolve root to absolute path
-        this.root = path.resolve(process.cwd(), root);
+    constructor(root: string = '/workspace', initialEnv: Record<string, string> = {}) {
+        // In browser environment, we use a virtual root.
+        // We ensure it's absolute within the virtual space.
+        this.root = root.startsWith('/') ? root : '/' + root;
         
         // Initialize environment variables from memory
         for (const [k, v] of Object.entries(initialEnv)) {
             this.env.set(k.toLowerCase(), v);
-        }
-
-        // Try to load .env from sandbox root if it exists
-        const envFile = path.join(this.root, '.env');
-        if (fs.existsSync(envFile)) {
-            try {
-                const content = fs.readFileSync(envFile, 'utf-8');
-                content.split('\n').forEach(line => {
-                    const [k, ...v] = line.split('=');
-                    if (k && v.length > 0) {
-                        const key = k.trim().toLowerCase();
-                        if (!this.env.has(key)) {
-                            this.env.set(key, v.join('=').trim());
-                        }
-                    }
-                });
-            } catch (e) {
-                // Ignore env file read errors
-            }
         }
     }
 
@@ -58,7 +39,9 @@ export class SandboxPath {
         // 3. Resolve path relative to root
         // Remove leading slash if it exists after drive conversion to ensure it's relative to root
         const relativePart = normalized.startsWith('/') ? normalized.substring(1) : normalized;
-        const resolved = path.resolve(this.root, relativePart);
+        
+        // Using path.join instead of path.resolve to avoid process.cwd dependency
+        const resolved = path.join(this.root, relativePart);
 
         // 4. Traversal check
         if (!resolved.startsWith(this.root)) {
@@ -74,16 +57,15 @@ export class SandboxPath {
      * @returns VBA path (Windows format if it maps to a drive)
      */
     public toVirtualPath(realPath: string): string {
-        const absoluteRealPath = path.resolve(realPath);
-        const relative = path.relative(this.root, absoluteRealPath);
+        const relative = path.relative(this.root, realPath);
         
         if (relative.startsWith('..')) {
             throw new Error(`Security Error: Real path is outside of sandbox root (${realPath})`);
         }
 
-        if (relative === '') return '\\';
+        if (relative === '' || relative === '.') return '\\';
 
-        const parts = relative.split(path.sep);
+        const parts = relative.split(/[/\\]/);
         // If first part is a single letter, treat as drive letter: c/foo -> C:\foo
         if (parts[0].length === 1 && /^[a-z]$/i.test(parts[0])) {
             const drive = parts[0].toUpperCase();

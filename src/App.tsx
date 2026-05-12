@@ -344,7 +344,8 @@ assert.strictEqual(r, 300);`;
       evaluator.evaluate(ast)
       setRunOutput(prev => [...prev, ...newOutputs, '> Execution finished.'])
     } catch (err: any) {
-      setRunOutput(prev => [...prev, `Error: ${err.message}`])
+      const msg = err.number ? `Error: ${err.number} ${err.message}` : `Error: ${err.message}`;
+      setRunOutput(prev => [...prev, msg])
     }
   }
 
@@ -386,7 +387,8 @@ assert.strictEqual(r, 300);`;
         : `\n❌ ${failCount} failed, ${passCount} passed`;
       outputs.push(summary);
     } catch (err: any) {
-      outputs.push(`Error: ${err.message}`);
+      const msg = err.number ? `Error: ${err.number} ${err.message}` : `Error: ${err.message}`;
+      outputs.push(msg);
       if (failCount > 0 || passCount > 0) {
         outputs.push(`\n❌ ${failCount} failed, ${passCount} passed (aborted)`);
       }

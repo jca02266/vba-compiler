@@ -3,6 +3,7 @@ import * as path from 'path';
 import { Lexer } from '../../src/compiler/lexer';
 import { Parser } from '../../src/compiler/parser';
 import { Evaluator, vbaTrue, vbaFalse, VbaBoolean, vbaNull, vbaEmpty } from '../../src/compiler/evaluator';
+import { NodeFileSystem } from '../../src/compiler/node_filesystem';
 export { vbaTrue, vbaFalse, vbaNull, vbaEmpty };
 
 const VBA_EXTENSIONS = new Set(['.vba', '.cls', '.frm']);
@@ -11,7 +12,7 @@ export class VBATest {
     private evaluator: Evaluator;
 
     constructor(pathOrDir: string, config: { sandboxRoot?: string, env?: Record<string, string> } = {}) {
-        this.evaluator = new Evaluator(console.log, config);
+        this.evaluator = new Evaluator(console.log, { ...config, fs: new NodeFileSystem() });
 
         const stat = fs.statSync(pathOrDir);
         const files = stat.isDirectory()

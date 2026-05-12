@@ -2,11 +2,12 @@ import { Lexer } from '../../src/compiler/lexer';
 import { Parser } from '../../src/compiler/parser';
 import { Evaluator } from '../../src/compiler/evaluator';
 import { assert } from '../ts/test-runner';
+import { NodeFileSystem } from '../../src/compiler/node_filesystem';
 
 function evalVBA(code: string): Evaluator {
     const tokens = new Lexer(code).tokenize();
     const ast = new Parser(tokens).parse();
-    const ev = new Evaluator(console.log);
+    const ev = new Evaluator(console.log, { fs: new NodeFileSystem() });
     ev.evaluate(ast);
     return ev;
 }

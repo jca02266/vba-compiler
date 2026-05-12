@@ -59,10 +59,10 @@ import {
     AttributeStatement,
     DeclareStatement,
 } from './parser';
-import * as fs from 'fs';
-import * as path from 'path';
 import { Lexer, TokenType } from './lexer';
 import { SandboxPath } from './sandbox';
+import { FileSystem, MemoryFileSystem } from './filesystem';
+import * as path from 'path';
 
 export class VbaBoolean {
     public readonly __isVbaBoolean__ = true;
@@ -469,10 +469,11 @@ export class Evaluator {
         fd: number,
         mode: 'Input' | 'Output' | 'Append' | 'Random' | 'Binary',
         path: string,
-        buffer?: Buffer,
+        buffer?: Uint8Array,
         pos?: number
     }> = new Map();
-    private sandbox: SandboxPath = new SandboxPath();
+    private sandbox: SandboxPath;
+    private fs: FileSystem;
     private onPrint: PrintCallback;
     private currentProcBody: Statement[] | null = null;
     private currentProcedureName: string | null = null;
@@ -496,10 +497,11 @@ export class Evaluator {
     private dirIterator: string[] | null = null;
     private dirIndex: number = 0;
 
-    constructor(onPrint: PrintCallback, config: { sandboxRoot?: string, env?: Record<string, string> } = {}) {
+    constructor(onPrint: PrintCallback, config: { sandboxRoot?: string, env?: Record<string, string>, fs?: FileSystem } = {}) {
         this.env = new Environment();
         this.onPrint = onPrint;
         this.sandbox = new SandboxPath(config.sandboxRoot, config.env);
+        this.fs = config.fs || new MemoryFileSystem();
         this.registerStandardLibrary();
     }
 
@@ -1099,12 +1101,12 @@ export class Evaluator {
         this.env.set('eof', (fn: any) => {
             const h = this.fileHandles.get(Number(fn));
             if (!h) this.throwVbaError(52, "Bad file name or number");
-            return h.pos! >= fs.statSync(h.path).size ? vbaTrue : vbaFalse;
+            return h.pos! >= this.fs.statSync(h.path).size ? vbaTrue : vbaFalse;
         });
         this.env.set('lof', (fn: any) => {
             const h = this.fileHandles.get(Number(fn));
             if (!h) this.throwVbaError(52, "Bad file name or number");
-            return fs.statSync(h.path).size;
+            return this.fs.statSync(h.path).size;
         });
         this.env.set('loc', (fn: any) => {
             const h = this.fileHandles.get(Number(fn));
@@ -1128,7 +1130,7 @@ export class Evaluator {
         });
         this.env.set('filedatetime', (path: any) => {
             const realPath = this.sandbox.toRealPath(String(path));
-            const stats = fs.statSync(realPath);
+            const stats = this.fs.statSync(realPath);
             return new VbaDate(toVbaDate(stats.mtime));
         });
 
@@ -1140,7 +1142,7 @@ export class Evaluator {
                     const realPath = this.sandbox.toRealPath(pathName);
                     const dirPath = path.dirname(realPath);
                     const filter = path.basename(realPath);
-                    const files = fs.readdirSync(dirPath);
+                    const files = this.fs.readdirSync(dirPath);
                     if (filter === "*.*" || filter === "*" || filter === "") {
                         this.dirIterator = files;
                     } else {
@@ -1156,12 +1158,12 @@ export class Evaluator {
             return this.dirIterator[this.dirIndex++];
         });
         this.env.set('dir$', this.env.get('dir'));
-        this.env.set('kill', (path: string) => fs.unlinkSync(this.sandbox.toRealPath(path)));
-        this.env.set('filecopy', (src: string, dest: string) => fs.copyFileSync(this.sandbox.toRealPath(src), this.sandbox.toRealPath(dest)));
-        this.env.set('mkdir', (path: string) => fs.mkdirSync(this.sandbox.toRealPath(path), { recursive: true }));
-        this.env.set('rmdir', (path: string) => fs.rmdirSync(this.sandbox.toRealPath(path)));
+        this.env.set('kill', (path: string) => this.fs.unlinkSync(this.sandbox.toRealPath(path)));
+        this.env.set('filecopy', (src: string, dest: string) => this.fs.copyFileSync(this.sandbox.toRealPath(src), this.sandbox.toRealPath(dest)));
+        this.env.set('mkdir', (path: string) => this.fs.mkdirSync(this.sandbox.toRealPath(path), { recursive: true }));
+        this.env.set('rmdir', (path: string) => this.fs.rmdirSync(this.sandbox.toRealPath(path)));
         this.env.set('chdir', (path: string) => { /* Mock or Sandbox logic */ });
-        this.env.set('filelen', (path: string) => fs.statSync(this.sandbox.toRealPath(path)).size);
+        this.env.set('filelen', (path: string) => this.fs.statSync(this.sandbox.toRealPath(path)).size);
 
         // --- Interaction Module ---
         this.env.set('shell', (cmd: any, style: any = 1) => { this.onPrint(`[SHELL] ${cmd} (Style: ${style})`); return 1; });
@@ -2592,8 +2594,8 @@ export class Evaluator {
             case 'Append': flags = 'a'; break;
             case 'Random':
             case 'Binary': 
-                if (!fs.existsSync(realPath)) {
-                    fs.writeFileSync(realPath, "");
+                if (!this.fs.existsSync(realPath)) {
+                    this.fs.writeFileSync(realPath, "");
                 }
                 flags = 'r+'; break;
         }
@@ -2602,14 +2604,14 @@ export class Evaluator {
             // Ensure directory exists for write modes
             if (flags === 'w' || flags === 'a') {
                 const dir = path.dirname(realPath);
-                if (!fs.existsSync(dir)) {
-                    fs.mkdirSync(dir, { recursive: true });
+                if (!this.fs.existsSync(dir)) {
+                    this.fs.mkdirSync(dir, { recursive: true });
                 }
-            } else if (flags === 'r' && !fs.existsSync(realPath)) {
+            } else if (flags === 'r' && !this.fs.existsSync(realPath)) {
                 this.throwVbaError(53, "File not found");
             }
 
-            const fd = fs.openSync(realPath, flags);
+            const fd = this.fs.openSync(realPath, flags);
             this.fileHandles.set(fileNum, {
                 fd,
                 mode: stmt.mode,
@@ -2631,7 +2633,7 @@ export class Evaluator {
         for (const num of nums) {
             const handle = this.fileHandles.get(num);
             if (handle) {
-                fs.closeSync(handle.fd);
+                this.fs.closeSync(handle.fd);
                 this.fileHandles.delete(num);
             }
         }
@@ -2672,7 +2674,7 @@ export class Evaluator {
             output += "\r\n";
         }
 
-        fs.writeSync(handle.fd, output);
+        this.fs.writeSync(handle.fd, output);
         handle.pos! += output.length;
     }
 
@@ -2681,12 +2683,12 @@ export class Evaluator {
         const handle = this.fileHandles.get(fileNum);
         if (!handle) this.throwVbaError(52, "Bad file name or number");
         
-        const buffer = Buffer.alloc(1);
+        const buffer = new Uint8Array(1);
         let line = "";
         let bytesRead = 0;
 
         while (true) {
-            bytesRead = fs.readSync(handle.fd, buffer, 0, 1, handle.pos);
+            bytesRead = this.fs.readSync(handle.fd, buffer, 0, 1, handle.pos);
             if (bytesRead === 0) break;
             const char = buffer.toString('utf8', 0, 1);
             handle.pos!++;
@@ -2704,21 +2706,25 @@ export class Evaluator {
 
         const data = this.evaluateExpression(stmt.data);
         const s = String(data);
-        const buffer = Buffer.from(s);
+        const buffer = new TextEncoder().encode(s);
         
         let position: number | null = handle.pos;
         if (stmt.recordNumber) {
             position = (Number(this.evaluateExpression(stmt.recordNumber)) - 1);
         }
 
-        fs.writeSync(handle.fd, buffer, 0, buffer.length, position);
+        this.fs.writeSync(handle.fd, buffer, 0, buffer.length, position);
         handle.pos! += buffer.length;
     }
 
     private evaluateKillStatement(stmt: KillStatement) {
         const vbaPath = String(this.evaluateExpression(stmt.path));
         const realPath = this.sandbox.toRealPath(vbaPath);
-        fs.unlinkSync(realPath);
+        try {
+            this.fs.unlinkSync(realPath);
+        } catch (e: any) {
+            this.throwVbaError(53, "File not found");
+        }
     }
 
     private evaluateWriteStatement(stmt: WriteStatement) {
@@ -2735,7 +2741,7 @@ export class Evaluator {
         }).join(",");
 
         const lineOutput = output + "\n";
-        fs.writeSync(handle.fd, lineOutput);
+        this.fs.writeSync(handle.fd, lineOutput);
         handle.pos! += lineOutput.length;
     }
 
@@ -2747,10 +2753,10 @@ export class Evaluator {
         // Simple line-based implementation for now.
         // Real VBA Input # parses delimiters even across lines.
         let content = "";
-        const buf = Buffer.alloc(1024);
+        const buf = new Uint8Array(1024);
         let bytesRead = 0;
         let readPos = handle.pos || 0;
-        while ((bytesRead = fs.readSync(handle.fd, buf, 0, 1024, readPos)) > 0) {
+        while ((bytesRead = this.fs.readSync(handle.fd, buf, 0, 1024, readPos)) > 0) {
             content += buf.toString('utf8', 0, bytesRead);
             if (content.includes('\n')) break;
             readPos += bytesRead;
@@ -2777,13 +2783,13 @@ export class Evaluator {
         if (!handle) throw new Error(`Execution error: File number ${fileNum} not open`);
 
         // Basic implementation: read up to 1024 bytes or until EOF
-        const buffer = Buffer.alloc(1024);
+        const buffer = new Uint8Array(1024);
         let position: number | null = handle.pos;
         if (stmt.recordNumber) {
             position = (Number(this.evaluateExpression(stmt.recordNumber)) - 1);
         }
         
-        const bytesRead = fs.readSync(handle.fd, buffer, 0, buffer.length, position);
+        const bytesRead = this.fs.readSync(handle.fd, buffer, 0, buffer.length, position);
         const s = buffer.toString('utf8', 0, bytesRead);
         this.evaluateAssignmentToVariable(stmt.variable, s);
         handle.pos! += bytesRead;
@@ -2802,7 +2808,7 @@ export class Evaluator {
 
     private evaluateResetStatement(stmt: ResetStatement) {
         for (const [num, handle] of this.fileHandles) {
-            fs.closeSync(handle.fd);
+            this.fs.closeSync(handle.fd);
         }
         this.fileHandles.clear();
     }
@@ -2849,38 +2855,38 @@ export class Evaluator {
                 fileexists: (p: string) => {
                     try {
                         const full = this.sandbox.toRealPath(p);
-                        return (fs.existsSync(full) && fs.statSync(full).isFile()) ? vbaTrue : vbaFalse;
+                        return (this.fs.existsSync(full) && this.fs.statSync(full).isFile()) ? vbaTrue : vbaFalse;
                     } catch { return vbaFalse; }
                 },
                 folderexists: (p: string) => {
                     try {
                         const full = this.sandbox.toRealPath(p);
-                        return (fs.existsSync(full) && fs.statSync(full).isDirectory()) ? vbaTrue : vbaFalse;
+                        return (this.fs.existsSync(full) && this.fs.statSync(full).isDirectory()) ? vbaTrue : vbaFalse;
                     } catch { return vbaFalse; }
                 },
                 createtextfile: (p: string, overwrite: boolean = true) => {
                     const full = this.sandbox.toRealPath(p);
-                    if (!overwrite && fs.existsSync(full)) this.throwVbaError(58, "File already exists");
-                    const fd = fs.openSync(full, 'w');
+                    if (!overwrite && this.fs.existsSync(full)) this.throwVbaError(58, "File already exists");
+                    const fd = this.fs.openSync(full, 'w');
                     return {
-                        write: (s: string) => fs.writeSync(fd, s),
-                        writeline: (s: string) => fs.writeSync(fd, s + "\r\n"),
-                        close: () => fs.closeSync(fd)
+                        write: (s: string) => this.fs.writeSync(fd, s),
+                        writeline: (s: string) => this.fs.writeSync(fd, s + "\r\n"),
+                        close: () => this.fs.closeSync(fd)
                     };
                 },
                 opentextfile: (p: string, iomode: number = 1) => {
                     const full = this.sandbox.toRealPath(p);
                     const mode = iomode === 1 ? 'r' : (iomode === 2 ? 'w' : 'a');
-                    const fd = fs.openSync(full, mode);
+                    const fd = this.fs.openSync(full, mode);
                     let pos = 0;
                     return {
                         readall: () => {
-                            const content = fs.readFileSync(full, 'utf8');
+                            const content = this.fs.readFileSync(full, 'utf8');
                             return content;
                         },
                         readline: () => {
                             // Simple readline implementation
-                            const content = fs.readFileSync(full, 'utf8');
+                            const content = this.fs.readFileSync(full, 'utf8');
                             const lines = content.slice(pos).split(/\r?\n/);
                             if (lines.length > 0) {
                                 const line = lines[0];
@@ -2889,26 +2895,26 @@ export class Evaluator {
                             }
                             return "";
                         },
-                        write: (s: string) => fs.writeSync(fd, s),
-                        close: () => fs.closeSync(fd)
+                        write: (s: string) => this.fs.writeSync(fd, s),
+                        close: () => this.fs.closeSync(fd)
                     };
                 },
                 createfolder: (p: string) => {
                     const full = this.sandbox.toRealPath(p);
-                    fs.mkdirSync(full, { recursive: true });
+                    this.fs.mkdirSync(full, { recursive: true });
                     return { path: p };
                 },
                 deletefile: (p: string) => {
                     const full = this.sandbox.toRealPath(p);
-                    fs.unlinkSync(full);
+                    this.fs.unlinkSync(full);
                 },
                 deletefolder: (p: string) => {
                     const full = this.sandbox.toRealPath(p);
-                    fs.rmSync(full, { recursive: true, force: true });
+                    this.fs.rmSync(full, { recursive: true, force: true });
                 },
                 getfile: (p: string) => {
                     const full = this.sandbox.toRealPath(p);
-                    const stats = fs.statSync(full);
+                    const stats = this.fs.statSync(full);
                     return {
                         path: p,
                         size: stats.size,
@@ -2954,11 +2960,11 @@ export class Evaluator {
                 readtext: () => { const r = content.slice(streamPos); streamPos = content.length; return r; },
                 savetofile: (p: string, mode: number = 1) => {
                     const full = this.sandbox.toRealPath(p);
-                    fs.writeFileSync(full, content);
+                    this.fs.writeFileSync(full, content);
                 },
                 loadfromfile: (p: string) => {
                     const full = this.sandbox.toRealPath(p);
-                    content = fs.readFileSync(full, 'utf8');
+                    content = this.fs.readFileSync(full, 'utf8');
                     streamPos = 0;
                 },
                 type: 2, // adTypeText

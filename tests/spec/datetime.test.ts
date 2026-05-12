@@ -157,8 +157,8 @@ End Function
     const nowVal   = runFunc(code2, 'TestNow');
     const dateVal  = runFunc(code2, 'TestDate');
     const timerVal = runFunc(code2, 'TestTimer');
-    assert.strictEqual(typeof nowVal,   'number', 'Now() returns number');
-    assert.strictEqual(typeof dateVal,  'number', 'Date() returns number');
+    assert.strictEqual(nowVal instanceof Object && nowVal.__isVbaDate__, true, 'Now() returns VbaDate');
+    assert.strictEqual(dateVal instanceof Object && dateVal.__isVbaDate__, true, 'Date() returns VbaDate');
     assert.strictEqual(typeof timerVal, 'number', 'Timer() returns number');
     assert.strictEqual(timerVal >= 0 && timerVal < 86400, true, 'Timer() 0..86400');
     console.log('[PASS] Now / Date / Timer');

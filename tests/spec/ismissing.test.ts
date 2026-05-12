@@ -1,7 +1,7 @@
 import { Lexer } from '../../src/compiler/lexer';
 import { Parser } from '../../src/compiler/parser';
 import { Evaluator } from '../../src/compiler/evaluator';
-import { assert } from '../ts/test-runner';
+import { assert, vbaTrue, vbaFalse } from '../ts/test-runner';
 
 function evalVBA(code: string): any {
     const tokens = new Lexer(code).tokenize();
@@ -28,12 +28,12 @@ function runFunc(code: string, name: string, args: any[] = []): any {
     `;
     
     // 引数なしで呼び出し
-    assert.strictEqual(runFunc(code, 'TestMissing', []), -1, 'IsMissing: should return True (-1) when argument is omitted');
+    assert.strictEqual(runFunc(code, 'TestMissing', []), vbaTrue, 'IsMissing: should return True when argument is omitted');
     
     // 引数ありで呼び出し
-    assert.strictEqual(runFunc(code, 'TestNotMissing', [10]), 0, 'IsMissing: should return False (0) when argument is provided');
-    assert.strictEqual(runFunc(code, 'TestNotMissing', [null]), 0, 'IsMissing: should return False (0) when Null is provided');
-    assert.strictEqual(runFunc(code, 'TestNotMissing', [""]), 0, 'IsMissing: should return False (0) when empty string is provided');
+    assert.strictEqual(runFunc(code, 'TestNotMissing', [10]), vbaFalse, 'IsMissing: should return False when argument is provided');
+    assert.strictEqual(runFunc(code, 'TestNotMissing', [null]), vbaFalse, 'IsMissing: should return False when Null is provided');
+    assert.strictEqual(runFunc(code, 'TestNotMissing', [""]), vbaFalse, 'IsMissing: should return False when empty string is provided');
 
     console.log('[PASS] IsMissing の基本動作');
 }

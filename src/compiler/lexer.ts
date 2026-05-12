@@ -1,4 +1,4 @@
-export enum TokenType {
+export const enum TokenType {
     Identifier,
     Number,
     String,
@@ -427,7 +427,7 @@ export class Lexer {
                     idStr += this.advance();
                 }
                 // Handle type hint characters at the end of an identifier
-                const typeHints = ['$', '%', '&', '!', '#', '@'];
+                const typeHints = ['$', '%', '&', '#', '@'];
                 if (typeHints.includes(this.peek())) {
                     idStr += this.advance();
                 }
@@ -541,7 +541,6 @@ export class Lexer {
                 if (lowerId === 'reset') return { type: TokenType.KeywordReset, value: idStr, line: this.line };
                 if (lowerId === 'unlock') return { type: TokenType.KeywordUnlock, value: idStr, line: this.line };
                 if (lowerId === 'paramarray') return { type: TokenType.KeywordParamArray, value: idStr, line: this.line };
-                if (lowerId === 'base') return { type: TokenType.KeywordBase, value: idStr, line: this.line };
                 if (lowerId === 'module') return { type: TokenType.KeywordModule, value: idStr, line: this.line };
                 if (lowerId === 'event') return { type: TokenType.KeywordEvent, value: idStr, line: this.line };
                 if (lowerId === 'raiseevent') return { type: TokenType.KeywordRaiseEvent, value: idStr, line: this.line };

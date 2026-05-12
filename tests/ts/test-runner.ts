@@ -2,7 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Lexer } from '../../src/compiler/lexer';
 import { Parser } from '../../src/compiler/parser';
-import { Evaluator, vbaTrue, vbaFalse, VbaBoolean } from '../../src/compiler/evaluator';
+import { Evaluator, vbaTrue, vbaFalse, VbaBoolean, vbaNull, vbaEmpty } from '../../src/compiler/evaluator';
+export { vbaTrue, vbaFalse, vbaNull, vbaEmpty };
 
 const VBA_EXTENSIONS = new Set(['.vba', '.cls', '.frm']);
 
@@ -61,26 +62,28 @@ export function runVBATest(filePath: string, procedureName: string, args: any[])
 // Minimal assert framework
 export const assert = {
     strictEqual: (actual: any, expected: any, message?: string) => {
-        if (actual !== expected) {
-            console.error(`[FAIL] ${message || 'Assertion failed'} - Expected ${expected} but got ${actual}`);
+        const a = (actual && (actual instanceof VbaBoolean || (actual as any).__isVbaBoolean__)) ? actual.valueOf() : actual;
+        const e = (expected && (expected instanceof VbaBoolean || (expected as any).__isVbaBoolean__)) ? expected.valueOf() : expected;
+        if (a !== e) {
+            console.error(`[FAIL] ${message || 'Assertion failed'} - Expected ${String(expected)} but got ${String(actual)}`);
             throw new Error(`Assertion Failed`);
         }
     },
     ok: (value: any, message?: string) => {
         if (!value) {
-            console.error(`[FAIL] ${message || 'Assertion failed'} - Expected truthy value but got ${value}`);
+            console.error(`[FAIL] ${message || 'Assertion failed'} - Expected truthy value but got ${String(value)}`);
             throw new Error(`Assertion Failed`);
         }
     },
     isTrue: (actual: VbaBoolean, message?: string) => {
         if (actual !== vbaTrue) {
-            console.error(`[FAIL] ${message || 'Assertion failed'} - Expected vbaTrue (${vbaTrue}) but got ${actual}`);
+            console.error(`[FAIL] ${message || 'Assertion failed'} - Expected vbaTrue (${String(vbaTrue)}) but got ${String(actual)}`);
             throw new Error(`Assertion Failed`);
         }
     },
     isFalse: (actual: VbaBoolean, message?: string) => {
         if (actual !== vbaFalse) {
-            console.error(`[FAIL] ${message || 'Assertion failed'} - Expected vbaFalse (${vbaFalse}) but got ${actual}`);
+            console.error(`[FAIL] ${message || 'Assertion failed'} - Expected vbaFalse (${String(vbaFalse)}) but got ${String(actual)}`);
             throw new Error(`Assertion Failed`);
         }
     },

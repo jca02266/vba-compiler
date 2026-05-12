@@ -1,7 +1,7 @@
 import { Lexer } from '../../src/compiler/lexer';
 import { Parser } from '../../src/compiler/parser';
 import { Evaluator } from '../../src/compiler/evaluator';
-import { assert } from '../ts/test-runner';
+import { assert, vbaTrue, vbaFalse } from '../ts/test-runner';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -33,10 +33,10 @@ function d(y: number, m: number, day: number): number {
 
 // --- IsLeapYear ---
 {
-    assert.strictEqual(r('IsLeapYear', 2000), -1, '2000 閏年');
-    assert.strictEqual(r('IsLeapYear', 1900),  0, '1900 非閏年（100の倍数）');
-    assert.strictEqual(r('IsLeapYear', 2024), -1, '2024 閏年');
-    assert.strictEqual(r('IsLeapYear', 2023),  0, '2023 非閏年');
+    assert.strictEqual(r('IsLeapYear', 2000), vbaTrue, '2000 閏年');
+    assert.strictEqual(r('IsLeapYear', 1900),  vbaFalse, '1900 非閏年（100の倍数）');
+    assert.strictEqual(r('IsLeapYear', 2024), vbaTrue, '2024 閏年');
+    assert.strictEqual(r('IsLeapYear', 2023),  vbaFalse, '2023 非閏年');
     console.log('[PASS] IsLeapYear');
 }
 
@@ -47,11 +47,11 @@ function d(y: number, m: number, day: number): number {
     const sat = d(2024, 3, 16);
     const sun = d(2024, 3, 17);
 
-    assert.strictEqual(r('IsWeekend',    fri),  0, '金曜は週末でない');
-    assert.strictEqual(r('IsWeekend',    sat), -1, '土曜は週末');
-    assert.strictEqual(r('IsWeekend',    sun), -1, '日曜は週末');
-    assert.strictEqual(r('IsWeekdayDate', fri), -1, '金曜は平日');
-    assert.strictEqual(r('IsWeekdayDate', sat),  0, '土曜は平日でない');
+    assert.strictEqual(r('IsWeekend',    fri),  vbaFalse, '金曜は週末でない');
+    assert.strictEqual(r('IsWeekend',    sat), vbaTrue, '土曜は週末');
+    assert.strictEqual(r('IsWeekend',    sun), vbaTrue, '日曜は週末');
+    assert.strictEqual(r('IsWeekdayDate', fri), vbaTrue, '金曜は平日');
+    assert.strictEqual(r('IsWeekdayDate', sat),  vbaFalse, '土曜は平日でない');
     console.log('[PASS] IsWeekend / IsWeekdayDate');
 }
 
@@ -199,10 +199,10 @@ function d(y: number, m: number, day: number): number {
     const d2  = d(2024, 12, 31);
     const mid = d(2024,  6, 15);
 
-    assert.strictEqual(r('IsBetweenDates', mid,              d1, d2), -1, '期間内');
-    assert.strictEqual(r('IsBetweenDates', d1,               d1, d2), -1, '開始日は含む');
-    assert.strictEqual(r('IsBetweenDates', d2,               d1, d2), -1, '終了日は含む');
-    assert.strictEqual(r('IsBetweenDates', d(2023, 12, 31), d1, d2),  0, '期間前は含まない');
+    assert.strictEqual(r('IsBetweenDates', mid,              d1, d2), vbaTrue, '期間内');
+    assert.strictEqual(r('IsBetweenDates', d1,               d1, d2), vbaTrue, '開始日は含む');
+    assert.strictEqual(r('IsBetweenDates', d2,               d1, d2), vbaTrue, '終了日は含む');
+    assert.strictEqual(r('IsBetweenDates', d(2023, 12, 31), d1, d2),  vbaFalse, '期間前は含まない');
     console.log('[PASS] IsBetweenDates');
 }
 

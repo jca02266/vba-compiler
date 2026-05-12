@@ -1,7 +1,7 @@
 import { Lexer } from '../../src/compiler/lexer';
 import { Parser } from '../../src/compiler/parser';
 import { Evaluator } from '../../src/compiler/evaluator';
-import { assert } from '../ts/test-runner';
+import { assert, vbaNull } from '../ts/test-runner';
 
 function evalVBA(code: string): any {
     const tokens = new Lexer(code).tokenize();
@@ -74,8 +74,8 @@ function runFunc(code: string, name: string, args: any[] = []): any {
             TestStartOver = InStrRev("abc", "a", 10)
         End Function
     `;
-    assert.strictEqual(runFunc(code, 'TestNull1'), null, 'InStrRev: StringCheck is Null -> Null');
-    assert.strictEqual(runFunc(code, 'TestNull2'), null, 'InStrRev: StringMatch is Null -> Null');
+    assert.strictEqual(runFunc(code, 'TestNull1'), vbaNull, 'InStrRev: StringCheck is Null -> Null');
+    assert.strictEqual(runFunc(code, 'TestNull2'), vbaNull, 'InStrRev: StringMatch is Null -> Null');
     assert.strictEqual(runFunc(code, 'TestEmpty1'), 0, 'InStrRev: StringCheck is empty -> 0');
     // In VBA: InStrRev("abc", "") with default start (-1) returns 3 (length of StringCheck)
     assert.strictEqual(runFunc(code, 'TestEmpty2'), 3, 'InStrRev: StringMatch is empty -> Len(StringCheck)');

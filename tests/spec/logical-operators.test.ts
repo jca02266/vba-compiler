@@ -49,7 +49,7 @@ async function main() {
     assert.strictEqual(vbaTest.eval(`"a2b" Like "a[123]b"`), -1); // True
     assert.strictEqual(vbaTest.eval(`"a4b" Like "a[123]b"`), 0);  // False
     assert.strictEqual(vbaTest.eval(`"a4b" Like "a[!123]b"`), -1); // True
-    assert.strictEqual(vbaTest.eval(`"ABC" Like "abc"`), -1);      // Case-insensitive
+    assert.strictEqual(vbaTest.eval(`"ABC" Like "abc"`), 0);       // Binary (default)
 
     console.log("--- All Logical Operators Tests passed! ---");
 }

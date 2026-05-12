@@ -1189,7 +1189,11 @@ export class Evaluator {
 
         // --- Interaction Module ---
         this.env.set('shell', (cmd: any, style: any = 1) => { this.onPrint(`[SHELL] ${cmd} (Style: ${style})`); return 1; });
-        this.env.set('msgbox', (msg: any, _buttons: any = 0, _title: any = "") => { this.onPrint(`[MSGBOX]: ${msg}`); return 1; });
+        this.env.set('msgbox', (msg: any, _buttons: any = 0, _title: any = "") => {
+            const title = _title ? ` ${_title}:` : '';
+            this.onPrint(`[MSGBOX]${title} ${msg}`);
+            return 1;
+        });
         this.env.set('inputbox', (prompt: any, _title: any = "", def: any = "") => { this.onPrint(`[INPUTBOX] ${prompt}`); return def; });
         this.env.set('appactivate', (title: string, _wait?: boolean) => { this.onPrint(`[APPACTIVATE] ${title}`); });
         this.env.set('sendkeys', (keys: string, _wait?: boolean) => { this.onPrint(`[SENDKEYS] ${keys}`); });

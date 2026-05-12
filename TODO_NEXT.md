@@ -1,0 +1,55 @@
+# 次期開発ロードマップ (Phase 2: IDE統合と開発エコシステム)
+
+MS-VBAL仕様書に基づくコンパイラの基本実装（Phase 1）が100%完了したことを受け、本プロジェクトの最終ゴールである**「VSCode内で完結するモダンなVBA統合開発環境（IDE）」**の構築に向けた次期TODOリストです。
+
+## 1. エディタ支援（Language Server Protocol: LSP）
+VSCode拡張機能として動作し、リアルタイムなコード解析とコーディング支援を提供します。詳細は `LSP.md` を参照。
+
+- [ ] **Tolerant Parsing（エラー耐性）の実装**
+  - [ ] Lexer: トークンに列番号（`column`）と長さ（`length`）を付与する。
+  - [ ] Parser: ASTノードに `start` と `end` の厳密な位置情報を付与する。
+  - [ ] Parser: エラー発生時にパースを中断せず、エラーリストとして収集する仕組み（Error Recovery）の実装。
+- [ ] **Diagnostics（構文エラー表示）**
+  - [ ] 解析されたエラーリストを波線としてエディタ上にフィードバックする。
+- [ ] **シンボル解決とホバー機能**
+  - [ ] `textDocument/documentSymbol` の実装（アウトライン表示）。
+  - [ ] `textDocument/hover` の実装（変数や関数の型情報ツールチップ）。
+  - [ ] `textDocument/definition` の実装（F12による定義元ジャンプ）。
+- [ ] **自動補完（Autocomplete）**
+  - [ ] `textDocument/completion` の実装（標準関数、モジュール内変数の補完）。
+
+## 2. テストエクスプローラーの統合 (VSCode Testing API)
+VBAのテストコードをVSCode上でシームレスに実行・確認できる環境を構築します。
+
+- [ ] **テストの自動検出**
+  - [ ] ワークスペース内のVBAファイルから、テスト用プロシージャ（例: `Test_` から始まるSub）を抽出し、VSCodeのテストエクスプローラーに一覧表示する。
+- [ ] **エディタからの直接実行 (CodeLens)**
+  - [ ] テスト定義の上に `▶ Run Test` ボタンを表示。
+  - [ ] 実行結果（Pass/Fail）およびエラーメッセージをVSCodeのTesting UIに直接反映させる。
+- [ ] **Test Double APIの拡張**
+  - [ ] テストランナー上で `MsgBox` や `Shell` などの副作用を検証できるSpy/Mock APIの提供。
+
+## 3. インタラクティブな実行環境とデバッグ (DAP)
+Excelを持たない環境（Mac/Linux/Web）でも、VBAマクロを実行・デバッグ可能にします。
+
+- [ ] **標準入出力のVSCode連携**
+  - [ ] `Debug.Print` の出力をVSCodeの Output Panel または内蔵ターミナルにルーティング。
+  - [ ] `MsgBox` や `InputBox` の呼び出しを、VSCodeの標準UI（`vscode.window`）にバインドして表示。
+- [ ] **Debug Adapter Protocol (DAP) の基礎構築**
+  - [ ] Evaluatorにステップ実行（Step Over, Step Into）のフックを追加。
+  - [ ] エディタで設定されたブレークポイント（赤い丸）で実行を一時停止する機能。
+  - [ ] 停止時のスコープ内の変数（ローカル変数など）をVSCodeのデバッグパネルに一覧表示する機能。
+
+## 4. Web拡張機能としてのパッケージングとリリース
+ローカル環境に依存しない、ブラウザ完結の開発体験を提供します。
+
+- [ ] **Web拡張機能 (Web Extension) 化**
+  - [ ] Node.jsのファイルシステム（`fs`）等に依存する処理を抽象化し、`vscode.workspace.fs` に置き換える。
+  - [ ] `esbuild` や `webpack` でブラウザ用（VSCode for the Web, github.dev 向け）にバンドル。
+- [ ] **VSCode Marketplace への公開**
+  - [ ] 拡張機能のアイコン、README の整備。
+  - [ ] `.vsix` ファイルのビルドパイプラインの構築と公開手続き。
+
+---
+**最終ビジョン**:  
+VBA開発者がVBE（Visual Basic Editor）を開くことなく、VSCode（またはブラウザ）上で、LSPによるモダンな補完を受けながらコードを書き、Testing APIで単体テストを即座に回し、必要に応じてデバッガでステップ実行できる「世界一快適なVBA開発環境」を実現する。

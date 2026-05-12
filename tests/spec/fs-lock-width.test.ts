@@ -2,24 +2,23 @@ import { Lexer } from '../../src/compiler/lexer';
 import { Parser } from '../../src/compiler/parser';
 import { Evaluator } from '../../src/compiler/evaluator';
 import { assert } from '../ts/test-runner';
-import * as fs from 'fs';
-import * as path from 'path';
+import { MemoryFileSystem } from '../../src/compiler/filesystem';
 
 let output = "";
 const onPrint = (msg: string) => {
     output += msg + "\n";
 };
 
+// Use VFS (MemoryFileSystem) for tests
+const vfs = new MemoryFileSystem();
+
 function evalVBA(code: string): any {
     const tokens = new Lexer(code).tokenize();
     const ast = new Parser(tokens).parse();
-    const ev = new Evaluator(onPrint);
+    const ev = new Evaluator(onPrint, { fs: vfs });
     ev.evaluate(ast);
     return ev;
 }
-
-const sandboxRoot = path.join(process.cwd(), 'sandbox');
-if (!fs.existsSync(sandboxRoot)) fs.mkdirSync(sandboxRoot);
 
 console.log("--- Starting FS Lock/Width Stub Tests ---");
 

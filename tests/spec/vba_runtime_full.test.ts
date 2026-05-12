@@ -1,18 +1,13 @@
 import { Evaluator, vbaMissing } from '../../src/compiler/evaluator';
 import { Lexer } from '../../src/compiler/lexer';
 import { Parser } from '../../src/compiler/parser';
-import * as fs from 'fs';
-import * as path from 'path';
+import { MemoryFileSystem } from '../../src/compiler/filesystem';
 
 function testFullRuntime() {
     console.log("Running Full Runtime tests...");
-    
-    // Clean sandbox
-    const sandbox = path.join(process.cwd(), 'sandbox');
-    if (fs.existsSync(sandbox)) {
-        fs.rmSync(sandbox, { recursive: true, force: true });
-    }
-    fs.mkdirSync(sandbox);
+
+    // Use VFS (MemoryFileSystem) for tests
+    const vfs = new MemoryFileSystem();
 
     const vbaCode = `
         Sub Main()
@@ -98,7 +93,7 @@ function testFullRuntime() {
     const tokens = lexer.tokenize();
     const parser = new Parser(tokens);
     const program = parser.parse();
-    const evaluator = new Evaluator((o) => { output += o + "\n"; }, { sandboxRoot: sandbox });
+    const evaluator = new Evaluator((o) => { output += o + "\n"; }, { fs: vfs });
     
     evaluator.evaluate(program);
 

@@ -5,17 +5,15 @@ import { Lexer } from '../../src/compiler/lexer';
 import { Parser } from '../../src/compiler/parser';
 import { Evaluator } from '../../src/compiler/evaluator';
 import { assert } from '../ts/test-runner';
-import * as fs from 'fs';
-import * as path from 'path';
+import { MemoryFileSystem } from '../../src/compiler/filesystem';
 
-// Sandbox 用ディレクトリ作成
-const sandboxRoot = path.join(process.cwd(), 'sandbox');
-if (!fs.existsSync(sandboxRoot)) fs.mkdirSync(sandboxRoot);
+// Use VFS (MemoryFileSystem) for tests
+const vfs = new MemoryFileSystem();
 
 function evalVBA(code: string): any {
     const tokens = new Lexer(code).tokenize();
     const ast = new Parser(tokens).parse();
-    const ev = new Evaluator(console.log, { sandboxRoot });
+    const ev = new Evaluator(console.log, { fs: vfs });
     ev.evaluate(ast);
     return ev;
 }
@@ -71,7 +69,8 @@ console.log('[PASS] FileLen, FileDateTime');
 ev.callProcedure('Test3', []);
 assert.strictEqual(ev.env.get('posbefore'), 1, 'Seek(1) 初期位置');
 assert.strictEqual(ev.env.get('posafter'), 5, 'Seek #1, 5');
-assert.strictEqual(fs.existsSync(path.join(sandboxRoot, 'test_bin.dat')), false, 'Kill');
+// VFS 内のファイル存在確認
+assert.strictEqual(vfs.existsSync('/test_bin.dat'), false, 'Kill');
 console.log('[PASS] Seek, Kill');
 
 console.log('\n✅ FileSystem (Extra): 全テスト通過');

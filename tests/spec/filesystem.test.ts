@@ -1,17 +1,13 @@
 import { Evaluator } from '../../src/compiler/evaluator';
 import { Lexer } from '../../src/compiler/lexer';
 import { Parser } from '../../src/compiler/parser';
-import * as fs from 'fs';
-import * as path from 'path';
+import { MemoryFileSystem } from '../../src/compiler/filesystem';
 
 function testFileSystem() {
     console.log("Running FileSystem tests...");
 
-    // Setup: clean sandbox/test.txt
-    const sandbox = path.resolve(process.cwd(), 'sandbox');
-    if (!fs.existsSync(sandbox)) fs.mkdirSync(sandbox);
-    const testFile = path.join(sandbox, 'test.txt');
-    if (fs.existsSync(testFile)) fs.unlinkSync(testFile);
+    // Use VFS (MemoryFileSystem) for tests
+    const vfs = new MemoryFileSystem();
 
     const vbaCode = `
         Sub TestFile()
@@ -43,8 +39,8 @@ function testFileSystem() {
     const tokens = lexer.tokenize();
     const parser = new Parser(tokens);
     const program = parser.parse();
-    // Setup initial env for Sandbox
-    const evaluator = new Evaluator((o) => { output += o + "\n"; }, { env: { "temp": "/tmp/vba" } });
+    // Use VFS (MemoryFileSystem) for sandbox
+    const evaluator = new Evaluator((o) => { output += o + "\n"; }, { fs: vfs, env: { "temp": "/tmp/vba" } });
     evaluator.evaluate(program);
 
     const lines = output.trim().split("\n").map(l => l.trim());

@@ -45,7 +45,7 @@ function runFunc(code: string, name: string, args: any[] = []): any {
     
     const ev = evalVBA(code);
     // Basic types
-    assert.strictEqual(ev.evalExpression('TypeName(10)'), 'Double', 'TypeName(10) -> Double (JS numbers are Double)');
+    assert.strictEqual(ev.evalExpression('TypeName(10)'), 'Integer', 'TypeName(10) -> Integer');
     assert.strictEqual(ev.evalExpression('TypeName("abc")'), 'String', 'TypeName("abc") -> String');
     assert.strictEqual(ev.evalExpression('TypeName(True)'), 'Boolean', 'TypeName(True) -> Boolean');
 

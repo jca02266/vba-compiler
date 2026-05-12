@@ -220,8 +220,16 @@ export const vbaTrue = new VbaBoolean(-1);
 export const vbaFalse = new VbaBoolean(0);
 export type VbaBooleanType = VbaBoolean;
 
+export type VbaNumericType = 'Byte' | 'Integer' | 'Long' | 'Single' | 'Double' | 'Currency' | 'LongLong';
+export type VbaVarType = VbaNumericType | 'String' | 'Boolean' | 'Date' | 'Variant' | 'Object';
+
+export interface VbaTypeInfo {
+    vbaType: VbaVarType;
+}
+
 export class Environment {
     private variables: Map<string, any> = new Map();
+    private variableTypes: Map<string, VbaTypeInfo> = new Map();
     private procedures: Map<string, ProcedureDeclaration> = new Map();
     private types: Map<string, TypeMember[]> = new Map();
     private withEventsVariables: Set<string> = new Set();
@@ -238,13 +246,13 @@ export class Environment {
             throw new Error(`Execution error: Assignment to constant not allowed: '${name}'`);
         }
         if (this.variables.has(key)) {
-            this.variables.set(key, value);
+            this.variables.set(key, this.coerceToType(key, value));
             return;
         }
         let env: Environment | undefined = this.enclosing;
         while (env) {
             if (env.variables.has(key)) {
-                env.variables.set(key, value);
+                env.variables.set(key, env.coerceToType(key, value));
                 return;
             }
             env = env.enclosing;
@@ -253,7 +261,110 @@ export class Environment {
     }
 
     setLocally(name: string, value: any) {
-        this.variables.set(name.toLowerCase(), value);
+        const key = name.toLowerCase();
+        this.variables.set(key, this.coerceToType(key, value));
+    }
+
+    setVariableType(name: string, typeInfo: VbaTypeInfo) {
+        this.variableTypes.set(name.toLowerCase(), typeInfo);
+    }
+
+    getVariableType(name: string): VbaTypeInfo | undefined {
+        const key = name.toLowerCase();
+        if (this.variableTypes.has(key)) {
+            return this.variableTypes.get(key);
+        }
+        let env: Environment | undefined = this.enclosing;
+        while (env) {
+            if (env.variableTypes.has(key)) {
+                return env.variableTypes.get(key);
+            }
+            env = env.enclosing;
+        }
+        return undefined;
+    }
+
+    private coerceToType(key: string, value: any): any {
+        const typeInfo = this.variableTypes.get(key);
+        if (!typeInfo) return value;
+
+        // Don't coerce special VBA values
+        if (value === vbaEmpty || value === undefined || value === vbaNull || value === vbaNothing || value === vbaMissing) {
+            return value;
+        }
+
+        switch (typeInfo.vbaType) {
+            case 'Byte': {
+                const n = Environment.vbaRoundStatic(Environment.toNumeric(value));
+                if (n < 0 || n > 255) Environment.throwOverflow();
+                return n;
+            }
+            case 'Integer': {
+                const n = Environment.vbaRoundStatic(Environment.toNumeric(value));
+                if (n < -32768 || n > 32767) Environment.throwOverflow();
+                return n;
+            }
+            case 'Long': {
+                const n = Environment.vbaRoundStatic(Environment.toNumeric(value));
+                if (n < -2147483648 || n > 2147483647) Environment.throwOverflow();
+                return n;
+            }
+            case 'Single': {
+                const n = Environment.toNumeric(value);
+                const f32 = Math.fround(n);
+                if (!isFinite(f32) && isFinite(n)) Environment.throwOverflow();
+                return f32;
+            }
+            case 'Double':
+                return Environment.toNumeric(value);
+            case 'Currency': {
+                const n = Environment.vbaRoundStatic(Environment.toNumeric(value), 4);
+                if (n < -922337203685477.5808 || n > 922337203685477.5807) Environment.throwOverflow();
+                return n;
+            }
+            case 'String':
+                if (typeof value === 'number' || value instanceof VbaBoolean || value instanceof VbaDate) {
+                    return String(value);
+                }
+                return value;
+            case 'Boolean':
+                if (typeof value === 'number') {
+                    return value !== 0 ? new VbaBoolean(-1) : new VbaBoolean(0);
+                }
+                return value;
+            default:
+                return value;
+        }
+    }
+
+    private static toNumeric(val: any): number {
+        if (typeof val === 'number') return val;
+        if (val instanceof VbaBoolean) return val.value;
+        if (val instanceof VbaDate) return val.value;
+        if (val instanceof VbaDecimal) return val.value;
+        if (typeof val === 'bigint') return Number(val);
+        if (typeof val === 'string') {
+            const n = parseFloat(val);
+            if (isNaN(n)) throw { type: 'VbaError', number: 13, message: 'Type mismatch' };
+            return n;
+        }
+        return Number(val);
+    }
+
+    private static vbaRoundStatic(val: number, decimals: number = 0): number {
+        const factor = Math.pow(10, decimals);
+        const scaled = val * factor;
+        const i = Math.floor(scaled);
+        const f = scaled - i;
+        const epsilon = 1e-10;
+        if (Math.abs(f - 0.5) < epsilon) {
+            return (i % 2 === 0 ? i : i + 1) / factor;
+        }
+        return Math.round(scaled) / factor;
+    }
+
+    private static throwOverflow(): never {
+        throw { type: 'VbaError', number: 6, message: 'Overflow' };
     }
 
     setWithEvents(name: string) {
@@ -1363,6 +1474,18 @@ export class Evaluator {
             } else {
                 argValue = (param.isOptional ? vbaMissing : vbaEmpty);
             }
+            // Register parameter type metadata
+            if (param.paramType) {
+                const typeMap: Record<string, VbaVarType> = {
+                    'byte': 'Byte', 'integer': 'Integer', 'long': 'Long',
+                    'single': 'Single', 'double': 'Double', 'currency': 'Currency',
+                    'string': 'String', 'boolean': 'Boolean', 'date': 'Date',
+                };
+                const mapped = typeMap[param.paramType.toLowerCase()];
+                if (mapped) {
+                    localEnv.setVariableType(paramName, { vbaType: mapped });
+                }
+            }
             localEnv.setLocally(paramName, argValue);
         }
 
@@ -2137,6 +2260,20 @@ export class Evaluator {
             }
             const varKey = varName.toLowerCase();
             const staticKey = `${this.currentProcedureName?.toLowerCase()}:${varKey}`;
+
+            // Register type metadata for typed declarations
+            if (decl.objectType && !decl.isArray) {
+                const typeMap: Record<string, VbaVarType> = {
+                    'byte': 'Byte', 'integer': 'Integer', 'long': 'Long',
+                    'single': 'Single', 'double': 'Double', 'currency': 'Currency',
+                    'longlonglong': 'LongLong',
+                    'string': 'String', 'boolean': 'Boolean', 'date': 'Date',
+                };
+                const mapped = typeMap[decl.objectType.toLowerCase()];
+                if (mapped) {
+                    this.env.setVariableType(varName, { vbaType: mapped });
+                }
+            }
 
             // For static variables, restore persisted value if available
             if (isStaticDecl && this.staticVarStore.has(staticKey)) {
@@ -3135,9 +3272,92 @@ export class Evaluator {
         return new VbaDate(toVbaDate(d));
     }
 
+    /**
+     * Infer the VBA type name for a number literal value.
+     * - Integer if it's a whole number in -32768..32767
+     * - Long if it's a whole number in Long range
+     * - Double otherwise (or if it has a fractional part)
+     */
+    private inferLiteralTypeName(val: number): string {
+        if (Number.isInteger(val)) {
+            if (val >= -32768 && val <= 32767) return 'Integer';
+            if (val >= -2147483648 && val <= 2147483647) return 'Long';
+        }
+        return 'Double';
+    }
+
+    private inferLiteralVarType(val: number): number {
+        if (Number.isInteger(val)) {
+            if (val >= -32768 && val <= 32767) return 2; // vbInteger
+            if (val >= -2147483648 && val <= 2147483647) return 3; // vbLong
+        }
+        return 5; // vbDouble
+    }
+
+    /**
+     * Special evaluator for TypeName() and VarType() that inspects the AST
+     * to resolve variable type metadata from the Environment.
+     */
+    private evaluateTypeIntrinsic(funcName: 'typename' | 'vartype', argExpr: Expression): any {
+        // If argument is an Identifier, check environment metadata first
+        if (argExpr.type === 'Identifier') {
+            const varName = (argExpr as Identifier).name;
+            const typeInfo = this.env.getVariableType(varName);
+            if (typeInfo) {
+                if (funcName === 'typename') {
+                    return typeInfo.vbaType;
+                } else {
+                    // VarType code mapping
+                    const vtMap: Record<string, number> = {
+                        'Byte': 17, 'Integer': 2, 'Long': 3,
+                        'Single': 4, 'Double': 5, 'Currency': 6,
+                        'LongLong': 20,
+                        'String': 8, 'Boolean': 11, 'Date': 7,
+                        'Variant': 12, 'Object': 9,
+                    };
+                    return vtMap[typeInfo.vbaType] ?? 12;
+                }
+            }
+        }
+
+        // Evaluate the value and use existing logic (with literal type inference)
+        const val = this.evaluateExpression(argExpr);
+
+        if (funcName === 'typename') {
+            // Check for number literal type inference
+            if (typeof val === 'number') {
+                // If the argument is a literal in the AST, infer type from value
+                if (argExpr.type === 'NumberLiteral') {
+                    return this.inferLiteralTypeName(val);
+                }
+                return 'Double'; // Expression results default to Double
+            }
+            // Delegate to existing typename function
+            const typenameFn = this.env.get('typename');
+            return typenameFn(val);
+        } else {
+            // VarType with literal inference
+            if (typeof val === 'number') {
+                if (argExpr.type === 'NumberLiteral') {
+                    return this.inferLiteralVarType(val);
+                }
+                return 5; // vbDouble
+            }
+            const vartypeFn = this.env.get('vartype');
+            return vartypeFn(val);
+        }
+    }
+
     private evaluateCallExpression(expr: CallExpression): any {
         if (expr.callee.type === 'Identifier') {
             const name = (expr.callee as Identifier).name;
+
+            // Special handling: TypeName() and VarType() need AST-level access to check variable types
+            const nameLower = name.toLowerCase();
+            if ((nameLower === 'typename' || nameLower === 'vartype') && expr.args.length === 1) {
+                return this.evaluateTypeIntrinsic(nameLower, expr.args[0]);
+            }
+
             const proc = this.env.getProcedure(name);
 
             if (proc) {
@@ -3192,6 +3412,18 @@ export class Evaluator {
                         argVal = this.evaluateExpression(param.defaultValue);
                     } else {
                         argVal = param.isOptional ? vbaMissing : 0;
+                    }
+                    // Register parameter type metadata
+                    if (param.paramType) {
+                        const typeMap: Record<string, VbaVarType> = {
+                            'byte': 'Byte', 'integer': 'Integer', 'long': 'Long',
+                            'single': 'Single', 'double': 'Double', 'currency': 'Currency',
+                            'string': 'String', 'boolean': 'Boolean', 'date': 'Date',
+                        };
+                        const mapped = typeMap[param.paramType.toLowerCase()];
+                        if (mapped) {
+                            localEnv.setVariableType(param.name, { vbaType: mapped });
+                        }
                     }
                     localEnv.setLocally(param.name, argVal);
 

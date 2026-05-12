@@ -39,7 +39,7 @@ assert.strictEqual(ev.callProcedure('TestMissing', [vbaMissing]), vbaTrue, 'IsMi
 assert.strictEqual(ev.callProcedure('TestMissing', [10]), vbaFalse, 'IsMissing(10) should be vbaFalse');
 
 // VarType
-assert.strictEqual(ev.callProcedure('TestVarType', []), 5, 'VarType(10) should be vbDouble (5) in JS implementation');
+assert.strictEqual(ev.callProcedure('TestVarType', []), 2, 'VarType(10) should be vbInteger (2)');
 
 // Constants
 assert.strictEqual(ev.callProcedure('TestConstants', []), vbaTrue, 'VBA type constants should be available');

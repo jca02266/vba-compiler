@@ -372,3 +372,44 @@ All MS-VBAL specification features, statements, and standard library functions d
     - ✅ `GetSetting` / `SaveSetting` / `DeleteSetting` / `GetAllSettings` をメモリ上のマップでエミュレート。
 - **外部COMオブジェクトのスタブ・フェイク拡充**:
     - `MSXML2.XMLHTTP` 等の頻出オブジェクトのメソッド・プロパティの実装。
+
+## 仮想ファイルシステム (VFS) の実装状況と課題
+
+Webブラウザおよびテスト環境向けの仮想ファイルシステム (`MemoryFileSystem`) の実装状況です。
+
+### 機能マトリックス
+
+| 状態 | 機能カテゴリ | 項目 | 説明 |
+| :---: | :--- | :--- | :--- |
+| ✅ | **基本 I/O** | `readSync` / `writeSync` | バッファ/文字列の同期読み書き。ハンドル位置の自動更新対応。 |
+| ✅ | | `openSync` / `closeSync` | ファイルオープン。`w` フラグ時の truncation (切り詰め) 対応済み。 |
+| ✅ | **ファイル管理** | `unlinkSync` | `Kill` ステートメントの基盤。現状は完全一致のみ。 |
+| ✅ | | `copyFileSync` | `FileCopy` ステートメントの基盤。 |
+| ✅ | **ディレクトリ** | `mkdirSync` | ディレクトリ作成。`recursive: true` 対応。 |
+| ✅ | | `readdirSync` | ディレクトリ一覧取得。`Dir` 関数の基盤。 |
+| ✅ | | `rmdirSync` | ディレクトリ削除。 |
+| ✅ | **メタデータ** | `statSync` | `size`, `mtime`, `birthtime`, `mode` の取得。 |
+| ✅ | | `existsSync` | ファイル/ディレクトリの存在確認。 |
+| ⚠️ | **高度な操作** | **ワイルドカード** | `Kill` および `Dir` における `*`, `?` のサポート。 |
+| ⚠️ | | **カレントディレクトリ** | `ChDir` / `CurDir` による仮想的な作業ディレクトリの保持。 |
+| ❌ | | **永続化** | `localStorage` や `IndexedDB` への保存・復元。 |
+| ❌ | | **排他制御** | `Lock` / `Unlock` ステートメントのエミュレーション。 |
+| ⚠️ | **互換性** | **バイナリ/テキスト** | `Binary` / `Random` / `Input` / `Output` 各モードの厳密な挙動。 |
+
+### VFS 開発ロードマップ (TODO)
+
+#### 1. コア機能の強化
+- [ ] `MemoryFileSystem` にワイルドカードマッチングロジックの実装（`Kill` への統合）。
+- [ ] `MemoryFileSystem` 内部での `cwd` (Current Working Directory) の保持と `ChDir` 対応。
+- [ ] `statSync` における VBA 属性（Read-only, Hidden 等）のシミュレーション。
+
+#### 2. ブラウザ環境最適化
+- [ ] `FileSystem` インターフェースの非同期版 (`read`, `write` 等) の検討（ブラウザのメインスレッドをブロックしないため）。
+- [ ] `IndexedDB` をバックエンドとした `PersistentFileSystem` の実装。
+
+#### 3. テスト環境の改善
+- [ ] `filesystem-extra.test.ts` 等のテストコードを、Node.js `fs` 直接参照から `this.fs` (抽象インターフェース) 参照へリファクタリング。
+- [ ] 複数の `Evaluator` インスタンス間で単一の `MemoryFileSystem` を共有するためのテスト用設定の追加。
+
+#### 4. バイナリ操作の極致
+- [ ] `Put` / `Get` における固定長文字列、UDT、多次元配列のバイナリレイアウトの完全な VBA 互換性検証。

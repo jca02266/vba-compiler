@@ -387,14 +387,15 @@ import { VBATest } from './tests/ts/test-runner';
 const vbaTest = new VBATest('source.vba', { useVirtualFS: true });
 
 // 1. テストデータの準備 (VBA実行前にファイルを配置)
+//    JavaScriptから実ファイルシステムにアクセスする場合は/workspaceを含む実パスを使用
 const fs = vbaTest.evaluator.fs;
-fs.writeFileSync('/workspace/input.txt', "テストデータ内容");
+fs.writeFileSync('/workspace/c/input.txt', "テストデータ内容");
 
-// 2. VBAを実行 (VBA側からは C:\\input.txt または 相対パス input.txt として見える)
+// 2. VBAを実行 (VBA側からは C:\input.txt として見える)
 vbaTest.run('ProcessFile', []);
 
 // 3. 実行結果の検証 (VFS上の出力を確認)
-const result = fs.readFileSync('/workspace/output.txt', 'utf-8');
+const result = fs.readFileSync('/workspace/c/output.txt', 'utf-8');
 console.log(result);
 ```
 

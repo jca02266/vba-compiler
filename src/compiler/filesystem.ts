@@ -163,7 +163,9 @@ export class MemoryFileSystem implements FileSystem {
         const norm = this.normalize(p);
         if (flags === 'r' && !this.existsSync(norm)) throw new Error(`File not found: ${p}`);
         if (flags === 'w' || flags === 'a') {
-            if (!this.files.has(norm)) this.writeFileSync(norm, "");
+            if (flags === 'w' || !this.files.has(norm)) {
+                this.writeFileSync(norm, new Uint8Array(0));
+            }
         }
         const fd = this.nextFd++;
         this.fileHandles.set(fd, { path: norm, flags, pos: 0 });
@@ -187,7 +189,7 @@ export class MemoryFileSystem implements FileSystem {
         
         if (toRead <= 0) return 0;
         buffer.set(bin.subarray(start, start + toRead), offset);
-        if (position === null) h.pos += toRead;
+        if (position === null || position === undefined) h.pos += toRead;
         return toRead;
     }
 
@@ -211,7 +213,7 @@ export class MemoryFileSystem implements FileSystem {
             birthtime: entry ? entry.birthtime : now,
             mtime: now
         });
-        if (position === null) h.pos += newData.length;
+        if (position === null || position === undefined) h.pos += newData.length;
         return newData.length;
     }
 

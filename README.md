@@ -357,6 +357,47 @@ const sandbox = new SandboxPath('./workspace', {
 });
 ```
 
+## 仮想ファイルシステム (VFS) の利用と将来構想
+
+本プロジェクトでは、ブラウザ上での動作や、テストの安全性を高めるために **仮想ファイルシステム (VFS)** を導入しています。
+
+### 将来構想：VFS を基本とした実行環境
+長期的には、Node.js 環境においても実際のディスクを操作する `NodeFileSystem` ではなく、メモリ上で完結する `MemoryFileSystem` (VFS) をデフォルトの実行環境にすることを構想しています。これにより、以下のメリットが得られます：
+- **安全性**: テスト実行によってホスト OS のファイルが誤って削除・上書きされるリスクをゼロにします。
+- **再現性**: テスト実行ごとにクリーンなファイルシステム状態から開始でき、並列実行も容易になります。
+- **ブラウザ互換性**: テストコードそのものをブラウザ上でそのまま実行可能になります。
+
+### VFS の有効化方法
+`VBATest` の初期化時に `useVirtualFS: true` を指定するか、環境変数 `USE_VFS=1` を設定することで VFS モードになります。
+
+```typescript
+// 個別にVFSを有効化
+const vbaTest = new VBATest('source.vba', { useVirtualFS: true });
+
+// または環境変数で一括切り替え
+// USE_VFS=1 node tests/spec/xxx.test.cjs
+```
+
+### JavaScript から VFS への直接アクセス (テストデータの準備)
+テストの準備（事前データの配置）や、実行結果の検証のために、JavaScript 側から VFS に対して直接ファイルを書き込んだり読み取ったりすることが可能です。
+
+```typescript
+import { VBATest } from './tests/ts/test-runner';
+
+const vbaTest = new VBATest('source.vba', { useVirtualFS: true });
+
+// 1. テストデータの準備 (VBA実行前にファイルを配置)
+const fs = vbaTest.evaluator.fs;
+fs.writeFileSync('/workspace/input.txt', "テストデータ内容");
+
+// 2. VBAを実行 (VBA側からは C:\\input.txt または 相対パス input.txt として見える)
+vbaTest.run('ProcessFile', []);
+
+// 3. 実行結果の検証 (VFS上の出力を確認)
+const result = fs.readFileSync('/workspace/output.txt', 'utf-8');
+console.log(result);
+```
+
 ## 高度な機能と仕様
 
 本セクションでは、大規模なリファクタリングや複雑なテストケースで必要となる詳細な仕様について解説します。

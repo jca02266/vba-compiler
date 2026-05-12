@@ -4,15 +4,18 @@ import { Lexer } from '../../src/compiler/lexer';
 import { Parser } from '../../src/compiler/parser';
 import { Evaluator, vbaTrue, vbaFalse, VbaBoolean, vbaNull, vbaEmpty } from '../../src/compiler/evaluator';
 import { NodeFileSystem } from '../../src/compiler/node_filesystem';
+import { MemoryFileSystem } from '../../src/compiler/filesystem';
 export { vbaTrue, vbaFalse, vbaNull, vbaEmpty };
 
 const VBA_EXTENSIONS = new Set(['.vba', '.cls', '.frm']);
 
 export class VBATest {
-    private evaluator: Evaluator;
+    public evaluator: Evaluator;
 
-    constructor(pathOrDir: string, config: { sandboxRoot?: string, env?: Record<string, string> } = {}) {
-        this.evaluator = new Evaluator(console.log, { ...config, fs: new NodeFileSystem() });
+    constructor(pathOrDir: string, config: { sandboxRoot?: string, env?: Record<string, string>, useVirtualFS?: boolean } = {}) {
+        const useVFS = config.useVirtualFS ?? (typeof process !== 'undefined' && process.env.USE_VFS === '1');
+        const fileSystem = useVFS ? new MemoryFileSystem() : new NodeFileSystem();
+        this.evaluator = new Evaluator(console.log, { ...config, fs: fileSystem });
 
         const stat = fs.statSync(pathOrDir);
         const files = stat.isDirectory()
@@ -55,8 +58,8 @@ export class VBATest {
 }
 
 // Keep backward compatibility
-export function runVBATest(filePath: string, procedureName: string, args: any[]): any {
-    const vbaTest = new VBATest(filePath);
+export function runVBATest(filePath: string, procedureName: string, args: any[], config: { sandboxRoot?: string, env?: Record<string, string>, useVirtualFS?: boolean } = {}): any {
+    const vbaTest = new VBATest(filePath, config);
     return vbaTest.run(procedureName, args);
 }
 

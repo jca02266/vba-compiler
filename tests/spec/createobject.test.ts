@@ -47,4 +47,30 @@ const ev = evalVBA(code);
 assert.strictEqual(ev.callProcedure('TestDictionary', []), 351, 'Dictionary operations (Add, Exists, Item, Remove, Count) should work (100+200+50+1 = 351)');
 assert.strictEqual(ev.callProcedure('TestFSO', []), 1, 'FSO stub should work without error');
 
+// --- 参照設定相当: 組み込みオブジェクトを `Dim As New` / `Set = New` で生成できる ---
+const newSyntaxCode = `
+    Function TestNewDictionary()
+        Dim d As New Dictionary
+        d.Add "A", 10
+        d.Add "B", 20
+        TestNewDictionary = d.Count
+    End Function
+
+    Function TestSetNewDictionary()
+        Dim d As Dictionary
+        Set d = New Dictionary
+        d.Add "key", 42
+        TestSetNewDictionary = d.Item("key")
+    End Function
+
+    Function TestNewFSO() As Boolean
+        Dim fso As New FileSystemObject
+        TestNewFSO = fso.FileExists("nonexistent.txt")
+    End Function
+`;
+const ev2 = evalVBA(newSyntaxCode);
+assert.strictEqual(ev2.callProcedure('TestNewDictionary', []), 2, 'Dim d As New Dictionary が動く');
+assert.strictEqual(ev2.callProcedure('TestSetNewDictionary', []), 42, 'Set d = New Dictionary が動く');
+assert.isFalse(ev2.callProcedure('TestNewFSO', []), 'Dim fso As New FileSystemObject が動く');
+
 console.log('✅ CreateObject: 全テスト通過');

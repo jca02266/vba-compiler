@@ -520,6 +520,7 @@ export class Evaluator {
         this.sandbox = new SandboxPath(config.sandboxRoot, config.env);
         this.fs = config.fs || new MemoryFileSystem();
         this.registerStandardLibrary();
+        this.registerBuiltinExternalObjects();
     }
 
     // Public accessor for testing/mocking
@@ -2350,7 +2351,10 @@ export class Evaluator {
                 }
             } else if (decl.isNew && decl.objectType === 'Collection') {
                 initialValue = new VbaCollection();
-            } else if (decl.isNew && decl.objectType && this.classDefinitions.has(decl.objectType.toLowerCase())) {
+            } else if (decl.isNew && decl.objectType && (
+                this.classDefinitions.has(decl.objectType.toLowerCase()) ||
+                this.externalObjectFactories.has(decl.objectType.toLowerCase())
+            )) {
                 initialValue = this.instantiateClass(decl.objectType);
             } else if (decl.objectType) {
                 const t = decl.objectType.toLowerCase();
@@ -2905,14 +2909,27 @@ export class Evaluator {
 
     private createExternalObject(progId: string): any {
         const id = progId.toLowerCase();
-        // 外部から登録されたファクトリを最優先
         const factory = this.externalObjectFactories.get(id);
         if (factory) return factory();
+        throw new Error(`Execution error: Unsupported CreateObject '${progId}'`);
+    }
 
-        if (id === 'scripting.dictionary') {
+    /**
+     * 組み込みの外部オブジェクト（Scripting.Dictionary 等）をファクトリ形式で
+     * 登録する。これにより以下の両方の呼び出しから同じファクトリが使われる:
+     *   - CreateObject("Scripting.Dictionary")
+     *   - Dim d As New Dictionary / Set d = New Dictionary（参照設定相当）
+     *
+     * テスト用に registerExternalObject で同じ progId / className を再登録すれば
+     * 上書き（モック差し替え）も可能。
+     */
+    private registerBuiltinExternalObjects(): void {
+        // --- Scripting.Dictionary ---
+        this.registerExternalObject('Scripting.Dictionary', () => {
             const dict = new Map<any, any>();
             return {
                 __isVbaDict__: true,
+                __className__: 'Dictionary',
                 __map__: dict,
                 add: (k: any, v: any) => dict.set(k, v),
                 exists: (k: any) => dict.has(k) ? vbaTrue : vbaFalse,
@@ -2928,108 +2945,115 @@ export class Evaluator {
                     return dict.get(k);
                 }
             };
-        } else if (id === 'scripting.filesystemobject') {
-            return {
-                __isVbaFso__: true,
-                fileexists: (p: string) => {
-                    try {
-                        const full = this.sandbox.toRealPath(p);
-                        return (this.fs.existsSync(full) && this.fs.statSync(full).isFile()) ? vbaTrue : vbaFalse;
-                    } catch { return vbaFalse; }
-                },
-                folderexists: (p: string) => {
-                    try {
-                        const full = this.sandbox.toRealPath(p);
-                        return (this.fs.existsSync(full) && this.fs.statSync(full).isDirectory()) ? vbaTrue : vbaFalse;
-                    } catch { return vbaFalse; }
-                },
-                createtextfile: (p: string, overwrite: boolean = true) => {
+        });
+
+        // --- Scripting.FileSystemObject ---
+        this.registerExternalObject('Scripting.FileSystemObject', () => ({
+            __isVbaFso__: true,
+            __className__: 'FileSystemObject',
+            fileexists: (p: string) => {
+                try {
                     const full = this.sandbox.toRealPath(p);
-                    if (!overwrite && this.fs.existsSync(full)) this.throwVbaError(58, "File already exists");
-                    const fd = this.fs.openSync(full, 'w');
-                    return {
-                        write: (s: string) => this.fs.writeSync(fd, s),
-                        writeline: (s: string) => this.fs.writeSync(fd, s + "\r\n"),
-                        close: () => this.fs.closeSync(fd)
-                    };
-                },
-                opentextfile: (p: string, iomode: number = 1) => {
+                    return (this.fs.existsSync(full) && this.fs.statSync(full).isFile()) ? vbaTrue : vbaFalse;
+                } catch { return vbaFalse; }
+            },
+            folderexists: (p: string) => {
+                try {
                     const full = this.sandbox.toRealPath(p);
-                    const mode = iomode === 1 ? 'r' : (iomode === 2 ? 'w' : 'a');
-                    const fd = this.fs.openSync(full, mode);
-                    let pos = 0;
-                    return {
-                        readall: () => {
-                            const content = this.fs.readFileSync(full, 'utf8');
-                            return content;
-                        },
-                        readline: () => {
-                            // Simple readline implementation
-                            const content = this.fs.readFileSync(full, 'utf8');
-                            const lines = content.slice(pos).split(/\r?\n/);
-                            if (lines.length > 0) {
-                                const line = lines[0];
-                                pos += line.length + (content[pos + line.length] === '\r' ? 2 : 1);
-                                return line;
-                            }
-                            return "";
-                        },
-                        write: (s: string) => this.fs.writeSync(fd, s),
-                        close: () => this.fs.closeSync(fd)
-                    };
-                },
-                createfolder: (p: string) => {
-                    const full = this.sandbox.toRealPath(p);
-                    this.fs.mkdirSync(full, { recursive: true });
-                    return { path: p };
-                },
-                deletefile: (p: string) => {
-                    const full = this.sandbox.toRealPath(p);
-                    this.fs.unlinkSync(full);
-                },
-                deletefolder: (p: string) => {
-                    const full = this.sandbox.toRealPath(p);
-                    this.fs.rmSync?.(full, { recursive: true, force: true });
-                },
-                getfile: (p: string) => {
-                    const full = this.sandbox.toRealPath(p);
-                    const stats = this.fs.statSync(full);
-                    return {
-                        path: p,
-                        size: stats.size,
-                        datecreated: new VbaDate(toVbaDate(stats.birthtime || stats.mtime)),
-                        datelastaccessed: new VbaDate(toVbaDate(stats.mtime)),
-                        datelastmodified: new VbaDate(toVbaDate(stats.mtime)),
-                        attributes: stats.mode || 0
-                    };
-                },
-                getfolder: (p: string) => ({ path: p }),
-                getbasename: (p: string) => path.basename(p),
-                getextensionname: (p: string) => path.extname(p).replace('.', ''),
-                getparentfoldername: (p: string) => path.dirname(p),
-                getabsolutepathname: (p: string) => p // already handled by sandbox resolve internally
-            };
-        } else if (id === 'msxml2.xmlhttp' || id === 'microsoft.xmlhttp') {
+                    return (this.fs.existsSync(full) && this.fs.statSync(full).isDirectory()) ? vbaTrue : vbaFalse;
+                } catch { return vbaFalse; }
+            },
+            createtextfile: (p: string, overwrite: boolean = true) => {
+                const full = this.sandbox.toRealPath(p);
+                if (!overwrite && this.fs.existsSync(full)) this.throwVbaError(58, "File already exists");
+                const fd = this.fs.openSync(full, 'w');
+                return {
+                    write: (s: string) => this.fs.writeSync(fd, s),
+                    writeline: (s: string) => this.fs.writeSync(fd, s + "\r\n"),
+                    close: () => this.fs.closeSync(fd)
+                };
+            },
+            opentextfile: (p: string, iomode: number = 1) => {
+                const full = this.sandbox.toRealPath(p);
+                const mode = iomode === 1 ? 'r' : (iomode === 2 ? 'w' : 'a');
+                const fd = this.fs.openSync(full, mode);
+                let pos = 0;
+                return {
+                    readall: () => {
+                        const content = this.fs.readFileSync(full, 'utf8');
+                        return content;
+                    },
+                    readline: () => {
+                        const content = this.fs.readFileSync(full, 'utf8');
+                        const lines = content.slice(pos).split(/\r?\n/);
+                        if (lines.length > 0) {
+                            const line = lines[0];
+                            pos += line.length + (content[pos + line.length] === '\r' ? 2 : 1);
+                            return line;
+                        }
+                        return "";
+                    },
+                    write: (s: string) => this.fs.writeSync(fd, s),
+                    close: () => this.fs.closeSync(fd)
+                };
+            },
+            createfolder: (p: string) => {
+                const full = this.sandbox.toRealPath(p);
+                this.fs.mkdirSync(full, { recursive: true });
+                return { path: p };
+            },
+            deletefile: (p: string) => {
+                const full = this.sandbox.toRealPath(p);
+                this.fs.unlinkSync(full);
+            },
+            deletefolder: (p: string) => {
+                const full = this.sandbox.toRealPath(p);
+                this.fs.rmSync?.(full, { recursive: true, force: true });
+            },
+            getfile: (p: string) => {
+                const full = this.sandbox.toRealPath(p);
+                const stats = this.fs.statSync(full);
+                return {
+                    path: p,
+                    size: stats.size,
+                    datecreated: new VbaDate(toVbaDate(stats.birthtime || stats.mtime)),
+                    datelastaccessed: new VbaDate(toVbaDate(stats.mtime)),
+                    datelastmodified: new VbaDate(toVbaDate(stats.mtime)),
+                    attributes: stats.mode || 0
+                };
+            },
+            getfolder: (p: string) => ({ path: p }),
+            getbasename: (p: string) => path.basename(p),
+            getextensionname: (p: string) => path.extname(p).replace('.', ''),
+            getparentfoldername: (p: string) => path.dirname(p),
+            getabsolutepathname: (p: string) => p
+        }));
+
+        // --- MSXML2.XMLHTTP / Microsoft.XMLHTTP ---
+        const xmlhttpFactory = () => {
             let responseText = "";
             let status = 0;
             return {
-                open: (_method: string, _url: string, _async: boolean = true) => {
-                    /* Mock */
-                },
-                send: (_body?: any) => {
-                    /* Mock */
-                },
+                __className__: 'XMLHTTP',
+                open: (_method: string, _url: string, _async: boolean = true) => { /* Mock */ },
+                send: (_body?: any) => { /* Mock */ },
                 setrequestheader: (_h: string, _v: string) => { /* Mock */ },
                 getresponsetext: () => responseText,
-                responsetext: responseText, // Property access
+                responsetext: responseText,
                 getstatus: () => status,
                 status: status,
                 readystate: 4
             };
-        } else if (id === 'adodb.stream') {
+        };
+        this.registerExternalObject('MSXML2.XMLHTTP', xmlhttpFactory);
+        this.registerExternalObject('Microsoft.XMLHTTP', xmlhttpFactory);
+
+        // --- ADODB.Stream ---
+        this.registerExternalObject('ADODB.Stream', () => {
             let content = "";
             let streamPos = 0;
             return {
+                __className__: 'Stream',
                 open: () => { streamPos = 0; },
                 close: () => { },
                 write: (data: any) => { content += String(data); },
@@ -3045,13 +3069,12 @@ export class Evaluator {
                     content = this.fs.readFileSync(full, 'utf8');
                     streamPos = 0;
                 },
-                type: 2, // adTypeText
+                type: 2,
                 charset: 'utf-8',
                 position: streamPos,
                 size: content.length
             };
-        }
-        throw new Error(`Execution error: Unsupported CreateObject '${progId}'`);
+        });
     }
 
     // Execute a sequence of statements starting from startIndex, with error handling support

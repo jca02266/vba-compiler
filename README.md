@@ -388,7 +388,35 @@ End Function
 - VBA の `New ClassName` / `Dim x As ClassName` は内部的に同じ class 名 lookup を行うため、`CreateObject` と同じ factory が使われます。
 - `__className__` を持たないオブジェクトを返す factory は `CreateObject` 経由でのみアクセスできます。
 
-> **動作確認**: `tests/test-libs-tests/regexp-mock.test.ts` に `CreateObject` 形式と `New RegExp` 形式の両方を網羅したテストがあります。
+#### 組み込み外部オブジェクトも参照設定相当をサポート
+
+本コンパイラに同梱されている組み込み外部オブジェクトは、すべて `registerExternalObject` 経由で登録されているため、`CreateObject` と `New` の両方の構文に対応しています。
+
+| ProgID | 参照設定相当の class 名 |
+|--------|---------------------|
+| `Scripting.Dictionary` | `Dictionary` |
+| `Scripting.FileSystemObject` | `FileSystemObject` |
+| `MSXML2.XMLHTTP` / `Microsoft.XMLHTTP` | `XMLHTTP` |
+| `ADODB.Stream` | `Stream` |
+
+例:
+```vba
+' どちらも同じ Dictionary オブジェクトを得る
+Dim d1 As Object
+Set d1 = CreateObject("Scripting.Dictionary")
+
+Dim d2 As New Dictionary
+
+Dim d3 As Dictionary
+Set d3 = New Dictionary
+```
+
+テストでこれらをモックに差し替えたい場合は、同じ progId / class 名で `registerExternalObject` を呼ぶと **組み込みの実装を上書き** できます。
+
+> **動作確認**:
+> - `tests/test-libs-tests/regexp-mock.test.ts` — ユーザー登録モック（VBScript.RegExp）の `CreateObject` 形式と `New RegExp` 形式
+> - `tests/spec/createobject.test.ts` — 組み込みオブジェクト（Dictionary, FSO）の `New` 構文サポート
+>
 > 同じ仕組みで `MSXML2.XMLHTTP` や自社の独自 COM オブジェクトもモック化できます。
 
 ---

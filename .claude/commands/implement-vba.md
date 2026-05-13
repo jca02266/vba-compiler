@@ -67,6 +67,9 @@ function runFunc(code: string, name: string, args: any[] = []): any {
 - 基本動作（正常系）
 - エッジケース（仕様書に明記されているもの）
 - エラー系（不正な入力）
+- **VBA ベテランが書きそうな代表コード**（重要）: 単に API 呼び出しを確認するだけでなく、実務でハマりやすい暗黙のランタイム挙動や、ライブラリの組み合わせ利用パターンを必ず含める
+  - 例: `Dim As New X` の Auto-Instantiation、Default Property 経由の暗黙呼び出し、`Variant` の型推移、`On Error` ハンドラ内での再帰エラー など
+  - 「仕様書のリストにある関数を呼んでみた」だけでは VBA の "癖" を見落とすため、ユーザーの実際の書き方を想定する
 
 > **注意**: `test-libs/test-runner.ts` の `VBATest` クラスは `sample/tests/ts/` 配下の `.vba` ファイルを読み込むためのもの。`tests/spec/` では使わない。
 

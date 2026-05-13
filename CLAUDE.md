@@ -35,7 +35,7 @@ TypeScript で実装された VBA インタープリター。Excel なしで VBA
 
 ## テストパターン
 
-テストは `sample/tests/ts/` に配置。`VBATest` クラス（`tests/ts/test-runner.ts`）はコンストラクタ時に `.vba` ファイルを読み込み、2 つの実行メソッドを提供する:
+テストは `sample/tests/ts/` に配置。`VBATest` クラス（`test-libs/test-runner.ts`）はコンストラクタ時に `.vba` ファイルを読み込み、2 つの実行メソッドを提供する:
 
 - **`vbaTest.run(procedureName, args)`** — TypeScript の配列引数を渡して名前付き Sub/Function を呼び出す
 - **`vbaTest.eval(expressionString)`** — VBA の式または文を文字列として評価する。式の場合は戻り値を返し、文の場合は `undefined` を返す
@@ -51,7 +51,7 @@ TypeScript で実装された VBA インタープリター。Excel なしで VBA
 - Windowsパス（`C:\...`）はドライブレターをサブディレクトリとして変換する（例: `C:\foo` → `{sandboxRoot}/c/foo`）
 - Sandboxルート外へのパス traversal（`../` など）は実行時エラーにする
 - `Environ` 関数はOSの実環境変数を参照せず、Sandbox内の定義（メモリまたは `{sandboxRoot}/.env`）のみを返す
-- テストコードでは `tests/ts/sandbox.ts` のユーティリティでパスを組み立てる
+- テストコードでは `test-libs/sandbox.ts` のユーティリティでパスを組み立てる
 
 ## サンプルコードの構成
 

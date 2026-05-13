@@ -1,7 +1,7 @@
 import { Lexer } from '../../src/compiler/lexer';
 import { Parser } from '../../src/compiler/parser';
 import { Evaluator } from '../../src/compiler/evaluator';
-import { assert, vbaNull } from '../ts/test-runner';
+import { assert, vbaNull } from '../../test-libs/test-runner';
 
 function evalVBA(code: string): any {
     const tokens = new Lexer(code).tokenize();

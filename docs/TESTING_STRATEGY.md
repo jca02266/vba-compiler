@@ -107,7 +107,7 @@ End Sub
 ### テストコード例
 
 ```typescript
-import { VBATest } from './tests/ts/test-runner';
+import { VBATest } from './test-libs/test-runner';
 
 describe('Sales Calculation', () => {
   const vbaTest = new VBATest('macro.vba');
@@ -455,7 +455,7 @@ End Sub
 ### 最小限の準備
 
 ```typescript
-import { VBATest } from './tests/ts/test-runner';
+import { VBATest } from './test-libs/test-runner';
 
 // テストファイル
 const vbaTest = new VBATest('src/vba/business-logic.vba');

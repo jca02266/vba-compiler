@@ -1,4 +1,4 @@
-import { VBATest, assert } from '../../../tests/ts/test-runner';
+import { VBATest, assert } from '../../../test-libs/test-runner';
 
 async function main() {
     console.log("--- Starting Sample VBA Tests ---\n");

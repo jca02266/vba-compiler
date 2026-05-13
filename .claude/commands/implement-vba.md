@@ -40,7 +40,7 @@ sed -n '1956,+80p' spec/MS-VBAL.txt         # → その行から本文を読む
 import { Lexer } from '../../src/compiler/lexer';
 import { Parser } from '../../src/compiler/parser';
 import { Evaluator } from '../../src/compiler/evaluator';
-import { assert } from '../ts/test-runner';
+import { assert } from '../../test-libs/test-runner';
 
 function evalVBA(code: string): any {
     const tokens = new Lexer(code).tokenize();
@@ -68,7 +68,7 @@ function runFunc(code: string, name: string, args: any[] = []): any {
 - エッジケース（仕様書に明記されているもの）
 - エラー系（不正な入力）
 
-> **注意**: `tests/ts/test-runner.ts` の `VBATest` クラスは `sample/tests/ts/` 配下の `.vba` ファイルを読み込むためのもの。`tests/spec/` では使わない。
+> **注意**: `test-libs/test-runner.ts` の `VBATest` クラスは `sample/tests/ts/` 配下の `.vba` ファイルを読み込むためのもの。`tests/spec/` では使わない。
 
 ### Step 5: 実装
 

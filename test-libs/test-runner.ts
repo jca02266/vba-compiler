@@ -1,10 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { Lexer } from '../../src/compiler/lexer';
-import { Parser } from '../../src/compiler/parser';
-import { Evaluator, vbaTrue, vbaFalse, VbaBoolean, vbaNull, vbaEmpty } from '../../src/compiler/evaluator';
-import { NodeFileSystem } from '../../src/compiler/node_filesystem';
-import { MemoryFileSystem } from '../../src/compiler/filesystem';
+import { Lexer } from '../src/compiler/lexer';
+import { Parser } from '../src/compiler/parser';
+import { Evaluator, vbaTrue, vbaFalse, VbaBoolean, vbaNull, vbaEmpty } from '../src/compiler/evaluator';
+import { NodeFileSystem } from '../src/compiler/node_filesystem';
+import { MemoryFileSystem } from '../src/compiler/filesystem';
 export { vbaTrue, vbaFalse, vbaNull, vbaEmpty };
 
 const VBA_EXTENSIONS = new Set(['.vba', '.cls', '.frm']);

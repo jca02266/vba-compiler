@@ -84,7 +84,7 @@ End Function
 
 ```typescript
 // tests/spec/math.test.ts
-import { VBATest } from '../ts/test-runner';
+import { VBATest } from '../../test-libs/test-runner';
 
 describe('Math Operations', () => {
   const vbaTest = new VBATest('src/vba/math.vba');

@@ -1,4 +1,4 @@
-import { assert } from '../ts/test-runner';
+import { assert } from '../../test-libs/test-runner';
 import { Evaluator, VbaDate } from '../../src/compiler/evaluator';
 import { Parser } from '../../src/compiler/parser';
 import { Lexer } from '../../src/compiler/lexer';

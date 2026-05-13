@@ -7,7 +7,7 @@
 import { Lexer } from '../../src/compiler/lexer';
 import { Parser } from '../../src/compiler/parser';
 import { Evaluator } from '../../src/compiler/evaluator';
-import { assert } from '../ts/test-runner';
+import { assert } from '../../test-libs/test-runner';
 
 console.log('--- Starting CurDir Tests ---');
 

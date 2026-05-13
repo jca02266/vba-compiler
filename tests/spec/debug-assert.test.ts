@@ -1,7 +1,7 @@
 import { Lexer } from '../../src/compiler/lexer';
 import { Parser } from '../../src/compiler/parser';
 import { Evaluator } from '../../src/compiler/evaluator';
-import { assert as specAssert } from '../ts/test-runner';
+import { assert as specAssert } from '../../test-libs/test-runner';
 
 // Debug.Assert tests
 {

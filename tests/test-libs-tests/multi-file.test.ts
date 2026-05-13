@@ -5,7 +5,7 @@
  * ディレクトリを指定するだけで全ファイルが同一スコープにロードされ
  * 相互参照できることを検証する。
  */
-import { VBATest, assert } from '../ts/test-runner';
+import { VBATest, assert } from '../../test-libs/test-runner';
 
 const DIR = 'tests/fixtures/multi-file';
 

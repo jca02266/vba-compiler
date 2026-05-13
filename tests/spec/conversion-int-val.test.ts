@@ -1,7 +1,7 @@
 import { Lexer } from '../../src/compiler/lexer';
 import { Parser } from '../../src/compiler/parser';
 import { Evaluator } from '../../src/compiler/evaluator';
-import { assert } from '../ts/test-runner';
+import { assert } from '../../test-libs/test-runner';
 
 function evalExpr(expr: string): any {
     const ev = new Evaluator(console.log);

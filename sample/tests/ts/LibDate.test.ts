@@ -1,7 +1,7 @@
 import { Lexer } from '../../../src/compiler/lexer';
 import { Parser } from '../../../src/compiler/parser';
 import { Evaluator } from '../../../src/compiler/evaluator';
-import { assert, vbaTrue, vbaFalse } from '../../../tests/ts/test-runner';
+import { assert, vbaTrue, vbaFalse } from '../../../test-libs/test-runner';
 import * as fs from 'fs';
 import * as path from 'path';
 

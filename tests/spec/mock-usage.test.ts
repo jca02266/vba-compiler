@@ -9,7 +9,7 @@ import { Lexer } from '../../src/compiler/lexer';
 import { Parser } from '../../src/compiler/parser';
 import { Evaluator } from '../../src/compiler/evaluator';
 import { MockApplication } from '../../src/compiler/mock/MockWorksheet';
-import { assert } from '../ts/test-runner';
+import { assert } from '../../test-libs/test-runner';
 
 // ============================================================
 // テスト 1: 単純な読み書き

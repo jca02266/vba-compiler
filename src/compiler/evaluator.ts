@@ -2268,6 +2268,27 @@ export class Evaluator {
     private evaluateAssignmentToVariable(left: Expression, val: any) {
         if (left.type === 'Identifier') {
             const name = (left as Identifier).name;
+            let variable = this.env.get(name);
+
+            // Resolve auto-instance placeholder if needed
+            variable = this.resolveAutoInstance(left as Identifier, variable);
+
+            // Check if this is a class instance with a default Value property
+            // FEATURE: Implicit default Value assignment (obj = value -> obj.Value = value)
+            if (variable && typeof variable === 'object' && variable.__vbaClass__) {
+                const classDef = variable.__classDef__ as ClassDeclaration;
+                if (classDef) {
+                    const valueSetter = classDef.procedures.find(
+                        p => p.isProperty && (p.propertyType === 'let' || p.propertyType === 'set') && p.name.name.toLowerCase() === 'value'
+                    );
+                    if (valueSetter) {
+                        // Call the Value property setter with the assigned value
+                        this.callClassMethod(variable, valueSetter, [val]);
+                        return;
+                    }
+                }
+            }
+
             const oldVal = this.env.get(name);
             if (oldVal !== val) this.triggerTerminate(oldVal);
 
@@ -2334,7 +2355,7 @@ export class Evaluator {
                 }
 
                 const target = this.env.get(name);
-                
+
                 if (Array.isArray(target)) {
                     // VBA index == JS index. Multi-dimensional: arr(i, j) = val -> arr[i][j] = val
                     let current = target;
@@ -2351,6 +2372,18 @@ export class Evaluator {
                     // Treat as Dictionary assignment dict("key") = val
                     const key = String(this.evaluateExpression(call.args[0]));
                     target.__map__.set(key, val);
+                } else if (target && target.__vbaClass__) {
+                    // Default property assignment: obj(args) = val -> obj.Item(args) = val
+                    const classDef = target.__classDef__ as ClassDeclaration;
+                    const setter = classDef.procedures.find(
+                        p => p.isProperty && (p.propertyType === 'let' || p.propertyType === 'set') && p.name.name.toLowerCase() === 'item'
+                    );
+                    if (setter) {
+                        const argsVals = call.args.map(a => this.evaluateExpression(a));
+                        this.callClassMethod(target, setter, [...argsVals, val]);
+                    } else {
+                        throw new Error(`Execution error: No default Item property setter found on class`);
+                    }
                 } else {
                     throw new Error(`Execution error: ${name} is not an array or dictionary`);
                 }
@@ -3751,6 +3784,18 @@ export class Evaluator {
                     if (expr.args.length === 0) throw new Error(`Execution error: Missing key for dictionary ${name}`);
                     const key = this.evaluateExpression(expr.args[0]);
                     return variable.__map__.get(key);
+                } else if (variable && variable.__vbaClass__ && expr.args.length > 0) {
+                    // Default property access: obj(args) -> obj.Item(args)
+                    const classDef = variable.__classDef__ as ClassDeclaration;
+                    // Look for Item property (or Value for single-arg no-index patterns)
+                    let defaultProperty = classDef.procedures.find(
+                        p => p.isProperty && p.propertyType === 'get' && p.name.name.toLowerCase() === 'item'
+                    );
+                    if (defaultProperty) {
+                        const argsVals = expr.args.map(a => this.evaluateExpression(a));
+                        return this.callClassMethod(variable, defaultProperty, argsVals);
+                    }
+                    throw new Error(`Execution error: No default property found on class '${(variable.__classDef__ as ClassDeclaration).name}'`);
                 }
                 throw new Error(`Execution error: Cannot call unknown procedure or index unknown array '${name}'`);
             }
@@ -3910,6 +3955,11 @@ export class Evaluator {
         const evaluated = this.evaluateExpression(expr.object);
         const obj = this.resolveAutoInstance(expr.object, evaluated);
         const propName = expr.property.name.toLowerCase();
+
+        // Safety check: ensure obj is an object before trying member access
+        if (obj === null || obj === undefined || (typeof obj !== 'object' && typeof obj !== 'function')) {
+            throw new Error(`Execution error: Cannot access property '${propName}' of ${typeof obj} value (${obj})`);
+        }
 
         // VBA class instance: look up field in instance environment or invoke Property Get
         if (obj && obj.__vbaClass__) {

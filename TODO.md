@@ -439,10 +439,10 @@ Webブラウザおよびテスト環境向けの仮想ファイルシステム (
 
 - [x] **Auto-Instantiation (`Dim x As New ClassName`)**: 遅延インスタンス化 + `Set = Nothing` 後の自動再生成 + `Is Nothing` 常時 False
 - [x] **`Dim x As ClassName`（New なし）のデフォルト値**: `Nothing` 初期化
-- ⚠️ **Default Property / Default Member** (制限事項: テスト準備完了、実装ロードマップ策定待ち): `Range("A1") = 10` のような暗黙の `.Value` 解決、Collection の `Item` 暗黙呼び出し等
+- 🚧 **Default Property / Default Member** (制限事項: テスト準備完了、実装ロードマップ策定待ち): `Range("A1") = 10` のような暗黙の `.Value` 解決、Collection の `Item` 暗黙呼び出し等
   - ✅ 包括的なテストスイート作成 (`default-property.test.ts`)
   - ✅ 基盤研究: VBA 仕様書からの解析、実装パターン検討
-  - ⏳ 次フェーズ: (1) obj(args) -> obj.Item(args), (2) result = obj -> obj.Value, (3) obj = value -> obj.Value = value
+  - 🚧 実装中: (1) obj(args) -> obj.Item(args), (2) result = obj -> obj.Value, (3) obj = value -> obj.Value = value
 - [ ] **WithEvents 変数の生存期間**: 親オブジェクト破棄時のイベントハンドラ解除
 - [ ] **循環参照時の `Set = Nothing` 挙動**: 強制クリアと Class_Terminate の呼び出し順
 - [ ] **`Me` キーワードの完全対応**: クラスモジュール内での全コンテキスト
@@ -482,7 +482,7 @@ Webブラウザおよびテスト環境向けの仮想ファイルシステム (
 ### 数値・日付の演算
 
 - [ ] **`\`（整数除算）の VBA 厳密仕様**: 引数の自動型変換（Variant → Integer/Long）と余り処理
-- [ ] **`Mod` 演算子のオーバーロード**: 浮動小数 vs 整数の挙動差
+- 🚧 **`Mod` 演算子のオーバーロード**: 浮動小数 vs 整数の挙動差
 - [ ] **`#1/1/2024#` 型 Date リテラルの月日順序**: ロケールに依存しない解釈の保証
 - [ ] **`DateAdd("m", 1, ...)` 等の月末ロールオーバー規則**: Jan31 + 1 month = Feb28/29
 

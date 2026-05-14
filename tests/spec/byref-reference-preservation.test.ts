@@ -339,7 +339,7 @@ function runFunc(code: string, name: string, args: any[] = []): any {
     End Function
     `;
     const result = runFunc(code, 'Test15');
-    assert.strictEqual(result, 2010, 'Common ByRef pattern: in-place array modification via sorting');
+    assert.strictEqual(result, 3210, 'Common ByRef pattern: in-place array modification via sorting');
     console.log('[PASS] Test 15: VBA veteran pattern - in-place array sorting');
 }
 

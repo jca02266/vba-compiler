@@ -1664,8 +1664,8 @@ export class Evaluator {
             } else {
                 argValue = (param.isOptional ? vbaMissing : vbaEmpty);
             }
-            // Register parameter type metadata
-            if (param.paramType) {
+            // Register parameter type metadata (but not for array parameters)
+            if (param.paramType && !param.isArray) {
                 const typeMap: Record<string, VbaVarType> = {
                     'byte': 'Byte', 'integer': 'Integer', 'long': 'Long',
                     'single': 'Single', 'double': 'Double', 'currency': 'Currency',
@@ -3983,14 +3983,18 @@ export class Evaluator {
                 // Map arguments to parameters
                 const byRefArgs: { paramName: string, originalExpr: Expression }[] = [];
                 const namedArgs = new Map<string, any>();
+                const namedArgExpressions = new Map<string, Expression>();
                 const positionalArgs: any[] = [];
+                const positionalArgExpressions: Expression[] = [];
 
                 for (const argExpr of expr.args) {
                     if (argExpr.type === 'NamedArgument') {
                         const namedArg = argExpr as NamedArgument;
                         namedArgs.set(namedArg.name.toLowerCase(), this.evaluateExpression(namedArg.value));
+                        namedArgExpressions.set(namedArg.name.toLowerCase(), namedArg.value);
                     } else {
                         positionalArgs.push(this.evaluateExpression(argExpr));
+                        positionalArgExpressions.push(argExpr);
                     }
                 }
 
@@ -4015,8 +4019,8 @@ export class Evaluator {
                     } else {
                         argVal = param.isOptional ? vbaMissing : 0;
                     }
-                    // Register parameter type metadata
-                    if (param.paramType) {
+                    // Register parameter type metadata (but not for array parameters)
+                    if (param.paramType && !param.isArray) {
                         const typeMap: Record<string, VbaVarType> = {
                             'byte': 'Byte', 'integer': 'Integer', 'long': 'Long',
                             'single': 'Single', 'double': 'Double', 'currency': 'Currency',
@@ -4030,12 +4034,17 @@ export class Evaluator {
                     localEnv.setLocally(param.name, argVal);
 
                     // ByRef handling
-                    if (i < expr.args.length) {
-                        const argExpr = expr.args[i];
-                        if (!param.isByVal) {
+                    if (!param.isByVal) {
+                        let originalExpr: Expression | undefined;
+                        if (namedArgExpressions.has(paramNameLower)) {
+                            originalExpr = namedArgExpressions.get(paramNameLower);
+                        } else if (i < positionalArgExpressions.length) {
+                            originalExpr = positionalArgExpressions[i];
+                        }
+                        if (originalExpr) {
                             byRefArgs.push({
                                 paramName: param.name,
-                                originalExpr: argExpr
+                                originalExpr: originalExpr
                             });
                         }
                     }

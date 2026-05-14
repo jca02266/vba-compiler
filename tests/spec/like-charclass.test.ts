@@ -1,7 +1,7 @@
 import { Lexer } from '../../src/compiler/lexer';
 import { Parser } from '../../src/compiler/parser';
 import { Evaluator } from '../../src/compiler/evaluator';
-import { assert } from '../../test-libs/test-runner';
+import { assert, vbaTrue, vbaFalse } from '../../test-libs/test-runner';
 
 function evalVBA(code: string): any {
     const tokens = new Lexer(code).tokenize();
@@ -23,7 +23,7 @@ function runFunc(code: string, name: string, args: any[] = []): any {
     End Function
     `;
     const result = runFunc(code, 'Test1');
-    assert.strictEqual(result === true, true, '[abc] should match a');
+    assert.strictEqual(result, vbaTrue, '[abc] should match a');
     console.log('[PASS] Test 1: Basic character class single character');
 }
 
@@ -35,7 +35,7 @@ function runFunc(code: string, name: string, args: any[] = []): any {
     End Function
     `;
     const result = runFunc(code, 'Test2');
-    assert.strictEqual(result === false, true, '[abc] should not match d');
+    assert.strictEqual(result, vbaFalse, '[abc] should not match d');
     console.log('[PASS] Test 2: Character not in list');
 }
 
@@ -47,7 +47,7 @@ function runFunc(code: string, name: string, args: any[] = []): any {
     End Function
     `;
     const result = runFunc(code, 'Test3');
-    assert.strictEqual(result === true, true, '[a-z] should match m');
+    assert.strictEqual(result, vbaTrue, '[a-z] should match m');
     console.log('[PASS] Test 3: Range [a-z]');
 }
 
@@ -59,7 +59,7 @@ function runFunc(code: string, name: string, args: any[] = []): any {
     End Function
     `;
     const result = runFunc(code, 'Test4');
-    assert.strictEqual(result === true, true, '[0-9] should match 5');
+    assert.strictEqual(result, vbaTrue, '[0-9] should match 5');
     console.log('[PASS] Test 4: Range [0-9]');
 }
 
@@ -71,7 +71,7 @@ function runFunc(code: string, name: string, args: any[] = []): any {
     End Function
     `;
     const result = runFunc(code, 'Test5');
-    assert.strictEqual(result === true, true, '[A-Z] should match M');
+    assert.strictEqual(result, vbaTrue, '[A-Z] should match M');
     console.log('[PASS] Test 5: Range [A-Z]');
 }
 
@@ -83,7 +83,7 @@ function runFunc(code: string, name: string, args: any[] = []): any {
     End Function
     `;
     const result = runFunc(code, 'Test6');
-    assert.strictEqual(result === true, true, '[!abc] should match d');
+    assert.strictEqual(result, vbaTrue, '[!abc] should match d');
     console.log('[PASS] Test 6: Negated class [!abc]');
 }
 
@@ -95,7 +95,7 @@ function runFunc(code: string, name: string, args: any[] = []): any {
     End Function
     `;
     const result = runFunc(code, 'Test7');
-    assert.strictEqual(result === false, true, '[!abc] should not match a');
+    assert.strictEqual(result, vbaFalse, '[!abc] should not match a');
     console.log('[PASS] Test 7: Negated class with char in list');
 }
 
@@ -107,7 +107,7 @@ function runFunc(code: string, name: string, args: any[] = []): any {
     End Function
     `;
     const result = runFunc(code, 'Test8');
-    assert.strictEqual(result === true, true, '[-abc] should match hyphen');
+    assert.strictEqual(result, vbaTrue, '[-abc] should match hyphen');
     console.log('[PASS] Test 8: Hyphen at start');
 }
 
@@ -119,7 +119,7 @@ function runFunc(code: string, name: string, args: any[] = []): any {
     End Function
     `;
     const result = runFunc(code, 'Test9');
-    assert.strictEqual(result === true, true, '[abc-] should match hyphen at end');
+    assert.strictEqual(result, vbaTrue, '[abc-] should match hyphen at end');
     console.log('[PASS] Test 9: Hyphen at end');
 }
 
@@ -133,7 +133,7 @@ function runFunc(code: string, name: string, args: any[] = []): any {
     End Function
     `;
     const result = runFunc(code, 'Test10');
-    assert.strictEqual(result === true, true, '[0-9a-z] should match both 5 and m');
+    assert.strictEqual(result, vbaTrue, '[0-9a-z] should match both 5 and m');
     console.log('[PASS] Test 10: Multiple ranges');
 }
 
@@ -147,7 +147,7 @@ function runFunc(code: string, name: string, args: any[] = []): any {
     End Function
     `;
     const result = runFunc(code, 'Test11');
-    assert.strictEqual(result === true, true, '[a-zA-Z_] should match a, _, Z');
+    assert.strictEqual(result, vbaTrue, '[a-zA-Z_] should match a, _, Z');
     console.log('[PASS] Test 11: Mixed ranges and chars');
 }
 
@@ -159,7 +159,7 @@ function runFunc(code: string, name: string, args: any[] = []): any {
     End Function
     `;
     const result = runFunc(code, 'Test12');
-    assert.strictEqual(result === true, true, 'test[0-9] should match test1');
+    assert.strictEqual(result, vbaTrue, 'test[0-9] should match test1');
     console.log('[PASS] Test 12: Class in pattern');
 }
 
@@ -171,7 +171,7 @@ function runFunc(code: string, name: string, args: any[] = []): any {
     End Function
     `;
     const result = runFunc(code, 'Test13');
-    assert.strictEqual(result === true, true, '[a-z]*[0-9] should match abc123');
+    assert.strictEqual(result, vbaTrue, '[a-z]*[0-9] should match abc123');
     console.log('[PASS] Test 13: Class with wildcard');
 }
 
@@ -186,7 +186,7 @@ function runFunc(code: string, name: string, args: any[] = []): any {
     `;
     const result = runFunc(code, 'Test14');
     // Empty character class should never match
-    assert.strictEqual(result === false, true, 'Empty [] should not match');
+    assert.strictEqual(result, vbaFalse, 'Empty [] should not match');
     console.log('[PASS] Test 14: Empty character class');
 }
 
@@ -200,7 +200,7 @@ function runFunc(code: string, name: string, args: any[] = []): any {
     End Function
     `;
     const result = runFunc(code, 'Test15');
-    assert.strictEqual(result === true, true, 'Common pattern: validate identifier start');
+    assert.strictEqual(result, vbaTrue, 'Common pattern: validate identifier start');
     console.log('[PASS] Test 15: Identifier validation pattern');
 }
 

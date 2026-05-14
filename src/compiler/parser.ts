@@ -97,6 +97,7 @@ export interface Parameter extends ASTNode {
     isByVal: boolean;
     isOptional?: boolean;
     isParamArray?: boolean;
+    isArray?: boolean;
     paramType?: string;
     defaultValue?: Expression;
 }
@@ -544,8 +545,10 @@ export class Parser {
         const nameToken = this.advance();
 
         // Consume optional () for arrays or ParamArray
+        let isArray = false;
         if (this.match(TokenType.OperatorLParen)) {
             this.consume(TokenType.OperatorRParen, "Expected ')' after parameter name");
+            isArray = true;
         }
 
         let paramType: string | undefined;
@@ -558,7 +561,7 @@ export class Parser {
             defaultValue = this.parseExpression();
         }
 
-        return { type: 'Parameter', name: nameToken.value, isByVal, isOptional, isParamArray, paramType, defaultValue };
+        return { type: 'Parameter', name: nameToken.value, isByVal, isOptional, isParamArray, isArray, paramType, defaultValue };
     }
 
     private parseAttributeStatement(): AttributeStatement {

@@ -2616,6 +2616,9 @@ export class Evaluator {
         const instanceEnv = instance.__instanceEnv__ as Environment;
         const localEnv = new Environment(instanceEnv);
 
+        // Make Me available as the current instance
+        localEnv.setLocally('Me', instance);
+
         // Map arguments to parameters
         for (let i = 0; i < proc.parameters.length; i++) {
             const param = proc.parameters[i];

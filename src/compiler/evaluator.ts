@@ -2811,6 +2811,11 @@ export class Evaluator {
     }
 
     private evaluateResumeStatement(stmt: ResumeStatement) {
+        // Check if there's an active error
+        if (this.errObj.number === 0) {
+            throw { type: 'VbaError', number: 20, message: 'Resume without error' };
+        }
+
         const target = (stmt.target || '').toLowerCase().trim();
         if (target === '') {
             throw { type: 'Resume', mode: 'Current' };

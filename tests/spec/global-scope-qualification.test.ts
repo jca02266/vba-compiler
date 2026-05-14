@@ -29,8 +29,8 @@ End Function
 
 const ev = new Evaluator(console.log);
 
-// Register global procedure (setSourceModule(''))
-loadAndEvaluate(ev, globalCode, '');
+// Global procedure registered as Module1
+loadAndEvaluate(ev, globalCode, 'Module1');
 
 // Register module procedure
 loadAndEvaluate(ev, moduleCode, 'MyModule');

@@ -30,7 +30,15 @@ sed -n '1956,+80p' spec/MS-VBAL.txt         # → その行から本文を読む
 
 ### Step 4: テストを作成
 
+**通常の機能実装の場合**:
 `tests/spec/` 配下に機能名に対応するテストファイルを作成する（例: `tests/spec/select-case.test.ts`）。
+
+**VBA ランタイム挙動の場合**:
+以下の両方を作成する：
+- TypeScript テスト: `tests/spec/<機能名>.test.ts` （基本的な動作確認用）
+- VBA ソーステスト: `tests/spec/vba/Test_<機能名>.vba` （実際のVBAコードの挙動確認用）
+  - ファイル名例: `Test_byref_arrays.vba`, `Test_default_property.vba`, `Test_auto_instantiation.vba`
+  - TODO.md の「VBA ランタイム挙動」セクションに両テストファイル名を記載
 
 #### tests/spec/ のテスト記述ルール
 
@@ -71,6 +79,38 @@ function runFunc(code: string, name: string, args: any[] = []): any {
   - 例: `Dim As New X` の Auto-Instantiation、Default Property 経由の暗黙呼び出し、`Variant` の型推移、`On Error` ハンドラ内での再帰エラー など
   - 「仕様書のリストにある関数を呼んでみた」だけでは VBA の "癖" を見落とすため、ユーザーの実際の書き方を想定する
 
+#### tests/spec/vba/ の VBA ソーステスト記述ルール（VBA ランタイム挙動用）
+
+**テストファイルの構造**:
+
+```vba
+' Test_<テスト名>: テストケース（複数作成可）
+Sub Test_BasicBehavior()
+    ' テスト内容を実装
+    ' Debug.Print や Err.Raise で結果を検証
+End Sub
+
+Sub Test_EdgeCase()
+    ' エッジケースの検証
+End Sub
+
+' Setup (オプション): 各テスト前の初期化
+Sub Setup()
+    ' テスト共通の初期化処理
+End Sub
+
+' TearDown (オプション): 各テスト後のクリーンアップ
+Sub TearDown()
+    ' テスト共通のクリーンアップ処理
+End Sub
+```
+
+**テストの書き方**:
+- `Test_` で始まる Sub プロシージャをテストケースとして認識
+- 検証は `Debug.Print` や `Assert` で行う
+- `Setup` / `TearDown` Sub は自動で呼び出される（VBA テストランナー生成時に）
+- エラーハンドリングのテストは `Err.Raise` で明示的にエラーを発生させる
+
 > **注意**: `test-libs/test-runner.ts` の `VBATest` クラスは `sample/tests/ts/` 配下の `.vba` ファイルを読み込むためのもの。`tests/spec/` では使わない。
 
 ### Step 5: 実装
@@ -110,11 +150,16 @@ function runFunc(code: string, name: string, args: any[] = []): any {
 部分実装や仕様上の制限がある場合は `⚠️`（備考を括弧内に記載）にする。
 仕様と異なる挙動が残る場合は、該当行に制限事項を明記すること。
 
+**VBA ランタイム挙動の場合は、テスト列に両テストファイル名を記載する：**
+```
+| ✅ | **機能説明** | テスト: `test-name.test.ts`, `Test_name.vba` |
+```
+
 以下の形式でコミットする:
 
 ```
 Feat: Implement <機能名> (<仕様書章番号>)
 
 - <実装内容の箇条書き>
-- テスト: <テストファイル名>
+- テスト: <テストファイル名>（VBA ランタイム挙動の場合は TypeScript と VBA の両方を記載）
 ```

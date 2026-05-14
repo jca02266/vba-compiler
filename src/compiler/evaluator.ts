@@ -1910,7 +1910,12 @@ export class Evaluator {
 
         let elements: any[];
         if (Array.isArray(collection)) {
-            elements = this.flattenArray(collection);
+            const dimensions = (collection as any).__vbaDimensions__;
+            if (dimensions && dimensions.length > 1) {
+                elements = this.enumerateMultiDimArray(collection, dimensions);
+            } else {
+                elements = this.flattenArray(collection);
+            }
         } else if (collection && collection.__isVbaDict__) {
             elements = Array.from((collection.__map__ as Map<any, any>).keys());
         } else if (collection && typeof collection.items !== 'undefined') {
@@ -1932,6 +1937,37 @@ export class Evaluator {
                 throw e;
             }
         }
+    }
+
+    private enumerateMultiDimArray(arr: any, dimensions: { lower: number, upper: number }[]): any[] {
+        const result: any[] = [];
+        const indices = dimensions.map(d => d.lower);
+
+        while (true) {
+            let element: any = arr;
+            for (const idx of indices) {
+                element = element[idx];
+            }
+            if (element !== undefined) {
+                result.push(element);
+            }
+
+            let dimIdx = 0;
+            while (dimIdx < dimensions.length) {
+                indices[dimIdx]++;
+                if (indices[dimIdx] <= dimensions[dimIdx].upper) {
+                    break;
+                }
+                indices[dimIdx] = dimensions[dimIdx].lower;
+                dimIdx++;
+            }
+
+            if (dimIdx === dimensions.length) {
+                break;
+            }
+        }
+
+        return result;
     }
 
     private flattenArray(arr: any[]): any[] {

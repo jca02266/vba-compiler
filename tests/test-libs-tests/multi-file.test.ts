@@ -17,8 +17,8 @@ assert.strictEqual(suite.run('Multiply', [6, 7]), 42, 'Multiply (MathUtils.vba)'
 console.log('[PASS] .vba ファイルのプロシージャ');
 
 // --- 2. .cls ファイルのプロシージャが呼べる ---
-assert.strictEqual(suite.run('Greet', ['World']), 'Hello, World!', 'Greet (StringUtils.cls)');
-assert.strictEqual(suite.run('Repeat', ['ab', 3]), 'ababab', 'Repeat (StringUtils.cls)');
+assert.strictEqual(suite.run('Greet', ['World']), 'Hello, World!', 'Greet (StringUtils.bas)');
+assert.strictEqual(suite.run('Repeat', ['ab', 3]), 'ababab', 'Repeat (StringUtils.bas)');
 console.log('[PASS] .cls ファイルのプロシージャ');
 
 // --- 3. .frm ファイルから他ファイルのプロシージャを相互参照できる ---

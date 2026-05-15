@@ -509,3 +509,15 @@ Webブラウザおよびテスト環境向けの仮想ファイルシステム (
 - [x] **`CreateObject(progId)` 経由のオブジェクト呼び出し**: 動的ディスパッチ
 - ⚠️ **存在しないメソッド呼び出しのエラー詳細**: VBA エラー番号 438 を厳密に再現 (制限事項: late binding error codes未実装)
 - ✅ **`IDispatch` 風のプロパティ get/set 自動振り分け**: 引数の有無でメソッド/プロパティ自動判定 | `idispatch-property-dispatch.test.ts`
+
+---
+
+## エンジンの改善
+
+### Parser の拡張機能
+
+- [ ] **Parser に `parseAsClass` パラメータを追加**: `.cls` ファイルやプログラム的にクラスとしてパースすべきコードの指定
+  - 現状: VBATest で `.cls` ファイル内のメンバー変数定義を検出して自動的に `Class...End Class` でラップしている
+  - 改善案: Parser に `parseAsClass` フラグを追加し、Lexer / Parser で正式にクラスパースモードを切り替える
+  - 影響範囲: `src/compiler/parser.ts`, `src/compiler/lexer.ts`, `test-libs/test-runner.ts`
+  - 関連: VBA標準では .cls ファイルはファイル名がクラス名となり、本エンジンの拡張機能として Class...End Class 構文を .bas 内でサポート

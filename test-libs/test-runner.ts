@@ -7,7 +7,7 @@ import { NodeFileSystem } from '../src/compiler/node_filesystem';
 import { MemoryFileSystem } from '../src/compiler/filesystem';
 export { vbaTrue, vbaFalse, vbaNull, vbaEmpty };
 
-const VBA_EXTENSIONS = new Set(['.vba', '.cls', '.frm']);
+const VBA_EXTENSIONS = new Set(['.vba', '.bas', '.cls', '.frm']);
 
 export class VBATest {
     public evaluator: Evaluator;

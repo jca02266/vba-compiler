@@ -1,7 +1,8 @@
 /**
- * VBA Test Runner - すべての _Test.{cls,vba} ファイルを自動実行
- * tests/spec/vba/ ディレクトリ内の *_Test.cls および *_Test.vba ファイルを
+ * VBA Test Runner - すべての .cls / .vba ファイルを自動実行
+ * tests/spec/vba/ ディレクトリ内のすべての .cls および .vba ファイルを
  * 自動検出し、VBATest ランナーで実行する汎用テストランナー
+ * テストプロシージャは test で始まる名前（大文字小文字を区別しない）で検出される
  */
 
 import * as fs from 'fs';
@@ -20,8 +21,14 @@ let passCount = 0;
 const failedTests: string[] = [];
 
 // ディレクトリ内のファイルをリスト
+// run-all-vba-tests.ts 自身を除外し、.cls と .vba ファイルを全て読み込む
 const files = fs.readdirSync(vbaDir);
-const testFiles = files.filter(f => f.endsWith('_Test.cls') || f.endsWith('_Test.vba'));
+const testFiles = files.filter(f => {
+  const ext = path.extname(f).toLowerCase();
+  const isVbaFile = ext === '.cls' || ext === '.vba';
+  const isNotRunner = !f.toLowerCase().includes('run-all-vba-tests');
+  return isVbaFile && isNotRunner;
+});
 
 console.log(`Found ${testFiles.length} test file(s):`);
 testFiles.forEach(f => console.log(`  - ${f}`));
@@ -41,8 +48,7 @@ fileCount = testFiles.length;
 const evaluator = (vbaTest as any).evaluator;
 const env = evaluator.env;
 
-// プロシージャマップから Test_ で始まる Sub を検出
-const procedures = new Map();
+// プロシージャマップから test で始まる Sub を検出
 
 // 環境内のすべてのプロシージャを取得
 function collectProcedures(environment: any): Map<string, any> {
@@ -71,7 +77,7 @@ function collectProcedures(environment: any): Map<string, any> {
 
 const allProcs = collectProcedures(env);
 
-// Test_ または test_ で始まるプロシージャを実行
+// test で始まるプロシージャを実行（大文字小文字を区別しない）
 for (const [procName] of allProcs) {
   if (typeof procName === 'string') {
     const lower = procName.toLowerCase();
@@ -80,8 +86,8 @@ for (const [procName] of allProcs) {
     const baseProcName = lower.includes(':') ? lower.split(':')[1] : lower;
     const moduleName = lower.includes(':') ? lower.split(':')[0] : '';
 
-    // VBA での Sub テスト（Test_* で始まる）
-    if (baseProcName.startsWith('test_')) {
+    // VBA での Sub テスト（test で始まる）
+    if (baseProcName.startsWith('test')) {
       testCount++;
       console.log(`[Test] ${procName}`);
 

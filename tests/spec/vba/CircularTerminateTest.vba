@@ -4,7 +4,7 @@ Option Explicit
 ' VBA source tests for circular reference and Class_Terminate behavior
 ' Tests verify that Class_Terminate is called at most once per object instance
 
-Sub Test_BasicTerminate()
+Sub Test_BasicTerminate(testResult)
     Dim helper As CircularTestHelper
     Dim objA As CircularReferenceATest
 
@@ -14,12 +14,10 @@ Sub Test_BasicTerminate()
 
     Set objA = Nothing
 
-    ' Class_Terminate should have been called once
-    Debug.Assert helper.TerminateCount = 1, "Basic terminate failed"
-    Debug.Print "Test_BasicTerminate passed"
+    If helper.TerminateCount <> 1 Then testResult = False
 End Sub
 
-Sub Test_MutualReferences()
+Sub Test_MutualReferences(testResult)
     Dim helper As CircularTestHelper
     Dim objA As CircularReferenceATest
     Dim objB As CircularReferenceBTest
@@ -33,16 +31,13 @@ Sub Test_MutualReferences()
     Set objA.RefB = objB
     Set objB.RefA = objA
 
-    ' Break the cycle
     Set objA = Nothing
     Set objB = Nothing
 
-    ' Both should terminate exactly once
-    Debug.Assert helper.TerminateCount = 2, "Mutual references terminate count failed: expected 2, got " & helper.TerminateCount
-    Debug.Print "Test_MutualReferences passed"
+    If helper.TerminateCount <> 2 Then testResult = False
 End Sub
 
-Sub Test_TerminateNotCalledTwice()
+Sub Test_TerminateNotCalledTwice(testResult)
     Dim helper As CircularTestHelper
     Dim objA As CircularReferenceATest
 
@@ -50,15 +45,13 @@ Sub Test_TerminateNotCalledTwice()
     Set objA = New CircularReferenceATest
     Set objA.Helper = helper
 
-    ' Set to Nothing twice - second call should not increment count
     Set objA = Nothing
     Set objA = Nothing
 
-    Debug.Assert helper.TerminateCount = 1, "Terminate called more than once"
-    Debug.Print "Test_TerminateNotCalledTwice passed"
+    If helper.TerminateCount <> 1 Then testResult = False
 End Sub
 
-Sub Test_MultipleObjects()
+Sub Test_MultipleObjects(testResult)
     Dim helper As CircularTestHelper
     Dim objA1 As CircularReferenceATest
     Dim objA2 As CircularReferenceATest
@@ -77,12 +70,10 @@ Sub Test_MultipleObjects()
     Set objA2 = Nothing
     Set objA3 = Nothing
 
-    ' All three should terminate
-    Debug.Assert helper.TerminateCount = 3, "Multiple objects terminate failed"
-    Debug.Print "Test_MultipleObjects passed"
+    If helper.TerminateCount <> 3 Then testResult = False
 End Sub
 
-Sub Test_CircularChainCleanup()
+Sub Test_CircularChainCleanup(testResult)
     Dim helper As CircularTestHelper
     Dim objA As CircularReferenceATest
     Dim objB As CircularReferenceBTest
@@ -97,17 +88,13 @@ Sub Test_CircularChainCleanup()
     Set objB.Helper = helper
     Set objA2.Helper = helper
 
-    ' Create chain: A -> B -> A2 (via RefB/RefA properties)
     Set objA.RefB = objB
     Set objB.RefA = objA2
     Set objA2.RefB = objA
 
-    ' Break chain
     Set objA = Nothing
     Set objB = Nothing
     Set objA2 = Nothing
 
-    ' All three should terminate
-    Debug.Assert helper.TerminateCount = 3, "Circular chain cleanup failed"
-    Debug.Print "Test_CircularChainCleanup passed"
+    If helper.TerminateCount <> 3 Then testResult = False
 End Sub

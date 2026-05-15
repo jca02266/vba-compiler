@@ -17,8 +17,8 @@ export class VBATestGenerator {
         let hasTearDown = false;
 
         // Sub Test*() または Function Test*() パターンを検出
-        // 先頭の空白を許容、括弧内の空白も許容
-        const procedurePattern = /^\s*(?:Sub|Function)\s+(\w+)\s*\(\s*\)/gim;
+        // 先頭の空白を許容、括弧内の空白も許容、括弧内に引数があってもよい
+        const procedurePattern = /^\s*(?:Sub|Function)\s+(\w+)\s*\(/gim;
 
         let match;
         while ((match = procedurePattern.exec(vbaSource)) !== null) {

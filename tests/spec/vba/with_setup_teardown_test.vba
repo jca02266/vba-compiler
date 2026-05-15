@@ -20,31 +20,31 @@ Sub TearDown()
 End Sub
 
 ' Test 1: Verify SetUp initializes counter
-Sub Test_SetupInitializesCounter()
-    Debug.Assert testCounter = 0, "SetUp failed to initialize counter"
+Sub Test_SetupInitializesCounter(testResult)
+    If testCounter <> 0 Then testResult = False
 End Sub
 
 ' Test 2: Verify SetUp sets state
-Sub Test_SetupInitializesState()
-    Debug.Assert testState = "initialized", "SetUp failed to initialize state"
+Sub Test_SetupInitializesState(testResult)
+    If testState <> "initialized" Then testResult = False
 End Sub
 
 ' Test 3: Modify counter
-Sub Test_CounterIncrement()
+Sub Test_CounterIncrement(testResult)
     testCounter = testCounter + 1
     testCounter = testCounter + 1
-    Debug.Assert testCounter = 2, "Counter increment failed"
+    If testCounter <> 2 Then testResult = False
 End Sub
 
 ' Test 4: String operations
-Sub Test_StringConcat()
+Sub Test_StringConcat(testResult)
     testState = testState & " and working"
-    Debug.Assert testState = "initialized and working", "String concat failed"
+    If testState <> "initialized and working" Then testResult = False
 End Sub
 
 ' Test 5: Boolean operations
-Sub Test_LogicalAnd()
+Sub Test_LogicalAnd(testResult)
     Dim result As Boolean
     result = (testCounter = 0) And (testState = "initialized")
-    Debug.Assert result, "Boolean operations failed"
+    If Not result Then testResult = False
 End Sub

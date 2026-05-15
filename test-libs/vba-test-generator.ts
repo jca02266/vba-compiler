@@ -94,7 +94,7 @@ export class VBATestGenerator {
 
             // テストを実行
             runner += `    On Error Resume Next\n`;
-            runner += `    If ${modulePrefix}${testProc}() Then\n`;
+            runner += `    If Not IsEmpty(${modulePrefix}${testProc}()) Then\n`;
             runner += `        testResults = testResults & "[PASS] ${testProc}" & vbCrLf\n`;
             runner += `        passCount = passCount + 1\n`;
             runner += `    Else\n`;

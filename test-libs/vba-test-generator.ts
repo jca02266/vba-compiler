@@ -76,6 +76,7 @@ export class VBATestGenerator {
         runner += `    Dim passCount As Integer\n`;
         runner += `    Dim failCount As Integer\n`;
         runner += `    Dim testResults As String\n`;
+        runner += `    Dim testResult\n`;
         runner += `    Dim i As Integer\n\n`;
         runner += `    allPass = True\n`;
         runner += `    passCount = 0\n`;
@@ -94,7 +95,6 @@ export class VBATestGenerator {
             }
 
             // テストを実行（Sub の呼び出し）
-            runner += `    Dim testResult\n`;
             runner += `    testResult = True\n`;
             runner += `    ${modulePrefix}${testProc} testResult\n`;
             runner += `    If testResult Then\n`;

@@ -1,0 +1,23 @@
+{
+  "comments": {
+    "lineComment": "'"
+  },
+  "brackets": [
+    ["(", ")"],
+    "[", "]"]
+  ],
+  "autoClosingPairs": [
+    ["(", ")"],
+    ["\"", "\""],
+    ["'", "'"]
+  ],
+  "surroundingPairs": [
+    ["(", ")"],
+    ["\"", "\""],
+    ["'", "'"]
+  ],
+  "indentationRules": {
+    "increaseIndentPattern": "^\\s*(If|For|While|Do|With|Sub|Function|Property|Class|Type|Select)\\b",
+    "decreaseIndentPattern": "^\\s*(End|Else|ElseIf|Loop|Next|Wend)\\b"
+  }
+}

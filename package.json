@@ -1,11 +1,56 @@
 {
-  "name": "tmpapp",
-  "private": true,
-  "version": "0.0.0",
+  "name": "vba-compiler",
+  "displayName": "VBA Compiler",
+  "description": "VBA compiler with LSP support, testing integration, and interactive debugging",
+  "version": "0.1.0",
   "type": "module",
+  "publisher": "vba-compiler",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jca02266/vba-compiler"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "main": "./dist/extension.cjs",
+  "browser": "./dist/extension-web.cjs",
+  "activationEvents": [
+    "onLanguage:vba",
+    "workspaceContains:**/*.vba",
+    "workspaceContains:**/*.cls",
+    "workspaceContains:**/*.frm"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "vba",
+        "aliases": [
+          "VBA",
+          "vba"
+        ],
+        "extensions": [
+          ".vba",
+          ".bas",
+          ".cls",
+          ".frm"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "vba",
+        "scopeName": "source.vba",
+        "path": "./syntaxes/vba.tmLanguage.json"
+      }
+    ]
+  },
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && npm run build:extension",
+    "build:extension": "esbuild src/extension.ts --bundle --outfile=dist/extension.cjs --platform=node --external:vscode",
+    "build:extension:web": "esbuild src/extension.ts --bundle --outfile=dist/extension-web.cjs --platform=browser --external:vscode",
     "lint": "eslint .",
     "preview": "vite preview",
     "test-gen": "esbuild test-libs/vba-test-generator.ts --bundle --outfile=dist/test-generator.cjs --platform=node && node dist/test-generator.cjs"
@@ -23,16 +68,19 @@
     "@types/path-browserify": "^1.0.3",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@types/vscode": "^1.90.0",
     "@vitejs/plugin-react": "^4.3.3",
     "autoprefixer": "^10.4.24",
     "eslint": "^9.13.0",
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.14",
+    "esbuild": "^0.23.1",
     "globals": "^15.11.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.2.0",
     "typescript": "~5.6.2",
     "typescript-eslint": "^8.11.0",
+    "vce": "^2.6.0",
     "vite": "^5.4.10"
   }
 }

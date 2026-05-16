@@ -1,0 +1,92 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "VBA",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#operators"
+    },
+    {
+      "include": "#identifiers"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.vba",
+          "begin": "'",
+          "end": "$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.vba",
+          "begin": "\"",
+          "end": "\"",
+          "escapes": {
+            "match": "\\\\."
+          }
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.vba",
+          "match": "\\b(0|[1-9]\\d*)(\\.\\d+)?(e[+-]?\\d+)?\\b"
+        },
+        {
+          "name": "constant.numeric.hex.vba",
+          "match": "&H[0-9A-F]+"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.vba",
+          "match": "\\b(If|Then|Else|ElseIf|End If|Select|Case|For|Next|While|Wend|Do|Loop|With|End With|Sub|End Sub|Function|End Function|Property|End Property|Class|End Class|Public|Private|Protected|Static|Dim|Const|ReDim|Erase|Set|Let|Call|Exit|Return|GoTo|On Error|Resume|Implements)\\b"
+        },
+        {
+          "name": "keyword.type.vba",
+          "match": "\\b(As|Integer|Long|Double|String|Boolean|Date|Currency|Variant|Object|Byte)\\b"
+        },
+        {
+          "name": "constant.language.vba",
+          "match": "\\b(True|False|Nothing|Empty|Null)\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.vba",
+          "match": "(\\+|-|\\*|/|\\\\|\\^|&|=|<>|<|>|<=|>=|And|Or|Not|Mod|Like|Is)"
+        }
+      ]
+    },
+    "identifiers": {
+      "patterns": [
+        {
+          "name": "variable.other.vba",
+          "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
+        }
+      ]
+    }
+  },
+  "scopeName": "source.vba"
+}

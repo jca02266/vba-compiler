@@ -6,13 +6,15 @@ import * as path from 'path';
  */
 export class SandboxPath {
     private root: string;
+    private cwd: string;
     private env: Map<string, string> = new Map();
 
     constructor(root: string = '/sandbox', initialEnv: Record<string, string> = {}) {
         // In browser environment, we use a virtual root.
         // We ensure it's absolute within the virtual space.
         this.root = root.startsWith('/') ? root : '/' + root;
-        
+        this.cwd = this.root;
+
         // Initialize environment variables from memory
         for (const [k, v] of Object.entries(initialEnv)) {
             this.env.set(k.toLowerCase(), v);
@@ -21,11 +23,12 @@ export class SandboxPath {
 
     /**
      * Converts a VBA virtual path to a real OS path within the sandbox.
+     * Relative paths are resolved against cwd; absolute paths against root.
      * @param vbaPath VBA path (absolute C:\... or relative)
      * @returns Real absolute OS path
      */
     public toRealPath(vbaPath: string): string {
-        if (!vbaPath) return this.root;
+        if (!vbaPath) return this.cwd;
 
         // 1. Normalize separators
         let normalized = vbaPath.replace(/\\/g, '/');
@@ -36,12 +39,14 @@ export class SandboxPath {
             normalized = '/' + drive + normalized.substring(2);
         }
 
-        // 3. Resolve path relative to root
-        // Remove leading slash if it exists after drive conversion to ensure it's relative to root
-        const relativePart = normalized.startsWith('/') ? normalized.substring(1) : normalized;
-        
-        // Using path.join instead of path.resolve to avoid process.cwd dependency
-        const resolved = path.join(this.root, relativePart);
+        let resolved: string;
+        if (normalized.startsWith('/')) {
+            // 3a. Absolute path: resolve from sandbox root
+            resolved = path.join(this.root, normalized.substring(1));
+        } else {
+            // 3b. Relative path: resolve from cwd
+            resolved = path.join(this.cwd, normalized);
+        }
 
         // 4. Traversal check
         if (!resolved.startsWith(this.root)) {
@@ -49,6 +54,20 @@ export class SandboxPath {
         }
 
         return resolved;
+    }
+
+    /** Returns the current working directory as a VBA virtual path. */
+    public getCwd(): string {
+        return this.toVirtualPath(this.cwd);
+    }
+
+    /** Changes the current working directory. Raises if path escapes sandbox. */
+    public setCwd(vbaPath: string): void {
+        const real = this.toRealPath(vbaPath);
+        if (!real.startsWith(this.root)) {
+            throw new Error(`Execution error: Access denied outside of sandbox root (${vbaPath})`);
+        }
+        this.cwd = real;
     }
 
     /**

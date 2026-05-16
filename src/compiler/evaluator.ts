@@ -1314,7 +1314,7 @@ export class Evaluator {
             return new VbaDate(toVbaDate(stats.mtime));
         });
 
-        this.env.set('curdir', (_drive?: string) => this.sandbox.toVirtualPath(this.sandbox.getRoot()));
+        this.env.set('curdir', (_drive?: string) => this.sandbox.getCwd());
         this.env.set('curdir$', this.env.get('curdir'));
         this.env.set('dir', (pathName?: string, _attributes?: number) => {
             if (pathName !== undefined && pathName !== null && pathName !== "") {
@@ -1342,7 +1342,13 @@ export class Evaluator {
         this.env.set('kill', (p: string) => this.executeKill(p));
         this.env.set('mkdir', (p: string) => this.fs.mkdirSync(this.sandbox.toRealPath(p), { recursive: true }));
         this.env.set('rmdir', (p: string) => this.fs.rmdirSync?.(this.sandbox.toRealPath(p)));
-        this.env.set('chdir', (_p: string) => { /* Mock or Sandbox logic */ });
+        this.env.set('chdir', (p: string) => {
+            try {
+                this.sandbox.setCwd(p);
+            } catch {
+                this.throwVbaError(76, 'Path not found');
+            }
+        });
         this.env.set('filelen', (p: string) => this.fs.statSync(this.sandbox.toRealPath(p)).size);
 
         // --- Interaction Module ---

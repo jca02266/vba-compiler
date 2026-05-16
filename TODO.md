@@ -415,7 +415,7 @@ Webブラウザおよびテスト環境向けの仮想ファイルシステム (
 
 #### 1. コア機能の強化
 - ✅ `MemoryFileSystem` にワイルドカードマッチングロジックの実装（`Kill` への統合）。 | `wildcard-kill-dir.test.ts`
-- ❌ `MemoryFileSystem` 内部での `cwd` (Current Working Directory) の保持と `ChDir` 対応。
+- ✅ `MemoryFileSystem` 内部での `cwd` (Current Working Directory) の保持と `ChDir` 対応。 | `chdir-curdir.test.ts`
 - ❌ `statSync` における VBA 属性（Read-only, Hidden 等）のシミュレーション。
 
 #### 2. ブラウザ環境最適化

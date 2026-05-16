@@ -90,11 +90,10 @@ function tokenize(src: string) {
     const ast = new Parser(tokens).parse();
     const proc = ast.body.find((s: any) => s.type === 'ProcedureDeclaration') as any;
     assert.ok(proc !== undefined, 'ProcedureDeclaration found');
-    assert.ok(proc.start !== undefined, 'start position set');
-    assert.ok(proc.end !== undefined, 'end position set');
-    assert.strictEqual(proc.start.line, 1, 'proc starts at line 1');
-    assert.strictEqual(proc.start.column, 1, 'proc starts at column 1');
-    console.log('[PASS] ASTNode start:', proc.start, 'end:', proc.end);
+    assert.ok(proc.loc !== undefined, 'loc position set');
+    assert.strictEqual(proc.loc.start.line, 1, 'proc starts at line 1');
+    assert.strictEqual(proc.loc.start.column, 1, 'proc starts at column 1');
+    console.log('[PASS] ASTNode loc.start:', proc.loc.start, 'loc.end:', proc.loc.end);
 }
 
 // 10. Assignment statement inside proc has correct start position
@@ -105,11 +104,11 @@ function tokenize(src: string) {
     const proc = ast.body.find((s: any) => s.type === 'ProcedureDeclaration') as any;
     const assign = proc.body.find((s: any) => s.type === 'AssignmentStatement') as any;
     assert.ok(assign !== undefined, 'AssignmentStatement found');
-    assert.strictEqual(assign.start.line, 2, 'assignment on line 2');
-    assert.strictEqual(assign.start.column, 5, 'assignment at column 5 (4 spaces)');
-    assert.ok(assign.end !== undefined, 'end position set');
-    assert.strictEqual(assign.end.line, 2, 'end on same line');
-    console.log('[PASS] Assignment start:', assign.start, 'end:', assign.end);
+    assert.ok(assign.loc !== undefined, 'loc set');
+    assert.strictEqual(assign.loc.start.line, 2, 'assignment on line 2');
+    assert.strictEqual(assign.loc.start.column, 5, 'assignment at column 5 (4 spaces)');
+    assert.strictEqual(assign.loc.end.line, 2, 'end on same line');
+    console.log('[PASS] Assignment loc.start:', assign.loc.start, 'loc.end:', assign.loc.end);
 }
 
 // 11. Tab indentation counts as 1 column per char

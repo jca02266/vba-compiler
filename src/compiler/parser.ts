@@ -39,11 +39,15 @@ export interface Position {
     column: number; // 1-based
 }
 
+export interface SourceLocation {
+    start: Position;
+    end: Position;
+}
+
 export interface ASTNode {
     type: string;
-    line?: number;       // kept for backward compat (= start.line when start is set)
-    start?: Position;    // position of first token of this node
-    end?: Position;      // position just after last token of this node
+    line?: number;        // kept for backward compat (= loc.start.line when loc is set)
+    loc?: SourceLocation; // source position (ESTree convention)
 }
 
 export interface Program extends ASTNode {
@@ -920,13 +924,11 @@ export class Parser {
             const endToken = this.tokens[this.pos - 1];
             if (startToken.line !== undefined) {
                 stmt.line = startToken.line;
-                stmt.start = { line: startToken.line, column: startToken.column };
-            }
-            if (endToken && endToken.line !== undefined) {
-                stmt.end = {
-                    line: endToken.line,
-                    column: endToken.column + endToken.value.length,
-                };
+                const startPos: Position = { line: startToken.line, column: startToken.column };
+                const endPos: Position = endToken && endToken.line !== undefined
+                    ? { line: endToken.line, column: endToken.column + endToken.value.length }
+                    : startPos;
+                stmt.loc = { start: startPos, end: endPos };
             }
         }
         return stmt;

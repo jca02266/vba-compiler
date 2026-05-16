@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # プロジェクト内のすべてのテストを一括実行するスクリプト
+#  - tests/engine/           : コンパイラエンジン内部のテスト（Lexer, Parser, AST構造）
 #  - tests/spec/             : VBA コンパイラの仕様テスト
 #  - tests/test-libs-tests/  : test-libs/ (VBATest 等) のテスト
 #  - sample/tests/ts/        : サンプル VBA コードのテスト
@@ -24,7 +25,7 @@ fi
 TESTS_FAILED=0
 FAILED_TESTS=""
 
-for f in tests/spec/*.test.ts tests/test-libs-tests/*.test.ts sample/tests/ts/*.test.ts; do
+for f in tests/engine/*.test.ts tests/spec/*.test.ts tests/test-libs-tests/*.test.ts sample/tests/ts/*.test.ts; do
   # VBA テスト用の特別なランナーはスキップ（run_vba_tests.sh で実行）
   if [[ "$f" == *"run-all-vba-tests"* ]]; then
     continue

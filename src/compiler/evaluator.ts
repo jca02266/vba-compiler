@@ -2042,7 +2042,7 @@ export class Evaluator {
         } else if (collection && typeof collection.items !== 'undefined') {
             elements = Array.isArray(collection.items) ? collection.items : [];
         } else {
-            throw new Error(`Execution error: 'For Each' requires a collection or array`);
+            this.throwVbaError(13, "Type mismatch: 'For Each' requires a collection or array");
         }
 
         for (const element of elements) {
@@ -3169,7 +3169,7 @@ export class Evaluator {
     private evaluateWriteStatement(stmt: WriteStatement) {
         const fileNum = Number(this.evaluateExpression(stmt.fileNumber));
         const handle = this.fileHandles.get(fileNum);
-        if (!handle) throw new Error(`Execution error: File number ${fileNum} not open`);
+        if (!handle) this.throwVbaError(52, `Bad file name or number: #${fileNum}`);
 
         const output = stmt.items.map(item => {
             const val = this.evaluateExpression(item);
@@ -3187,7 +3187,7 @@ export class Evaluator {
     private evaluateInputStatement(stmt: InputStatement) {
         const fileNum = Number(this.evaluateExpression(stmt.fileNumber));
         const handle = this.fileHandles.get(fileNum);
-        if (!handle) throw new Error(`Execution error: File number ${fileNum} not open`);
+        if (!handle) this.throwVbaError(52, `Bad file name or number: #${fileNum}`);
 
         // Simple line-based implementation for now.
         // Real VBA Input # parses delimiters even across lines.
@@ -3219,7 +3219,7 @@ export class Evaluator {
     private evaluateGetStatement(stmt: GetStatement) {
         const fileNum = Number(this.evaluateExpression(stmt.fileNumber));
         const handle = this.fileHandles.get(fileNum);
-        if (!handle) throw new Error(`Execution error: File number ${fileNum} not open`);
+        if (!handle) this.throwVbaError(52, `Bad file name or number: #${fileNum}`);
 
         // Basic implementation: read up to 1024 bytes or until EOF
         const buffer = new Uint8Array(1024);
@@ -3237,7 +3237,7 @@ export class Evaluator {
     private evaluateSeekStatement(stmt: SeekStatement) {
         const fileNum = Number(this.evaluateExpression(stmt.fileNumber));
         const handle = this.fileHandles.get(fileNum);
-        if (!handle) throw new Error(`Execution error: File number ${fileNum} not open`);
+        if (!handle) this.throwVbaError(52, `Bad file name or number: #${fileNum}`);
 
         const pos = Number(this.evaluateExpression(stmt.position));
         // Node doesn't have seekSync on FD directly without lseek, 
@@ -3519,7 +3519,7 @@ export class Evaluator {
 
                 if (e && e.type === 'Return') {
                     if (this.gosubStack.length === 0) {
-                        throw new Error('Execution error: Return without GoSub');
+                        this.throwVbaError(3, 'Return without GoSub');
                     }
                     i = this.gosubStack.pop()! + 1;
                     continue;

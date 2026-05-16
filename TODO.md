@@ -558,7 +558,7 @@ Webブラウザおよびテスト環境向けの仮想ファイルシステム (
 
 ### Error 3 — Return without GoSub
 
-- [ ] `evaluator.ts:3508` `Return without GoSub` → `throwVbaError(3, "Return without GoSub")`
+- ✅ `evaluator.ts:3508` `Return without GoSub` → `throwVbaError(3, ...)` | `ControlFlowErrorTest.vba`
 
 ### Error 5 — Invalid procedure call or argument
 
@@ -577,8 +577,7 @@ Webブラウザおよびテスト環境向けの仮想ファイルシステム (
 
 ### Error 13 — Type mismatch
 
-- [ ] `evaluator.ts:2043` `For Each` に配列でもコレクションでもない値を渡したとき → `throwVbaError(13, "Type mismatch")`
-  - 注: 実 VBA では `For Each i In 123` は実行時 Error 13
+- ✅ `evaluator.ts:2043` `For Each` に配列でもコレクションでもない値を渡したとき → `throwVbaError(13, ...)` | `ControlFlowErrorTest.vba`
 
 ### Error 35 — Sub or Function not defined
 
@@ -587,7 +586,8 @@ Webブラウザおよびテスト環境向けの仮想ファイルシステム (
 
 ### Error 52 — Bad file name or number
 
-- [ ] `evaluator.ts:3158, 3176, 3208, 3226` ファイルがオープンされていない状態で `Print#` / `Write#` / `Input#` / `Line Input#` 等を実行したとき → `throwVbaError(52, "Bad file name or number")`
+- ✅ `evaluateWriteStatement`, `evaluateInputStatement`, `evaluateGetStatement`, `evaluateSeekStatement` でファイル未オープン → `throwVbaError(52, ...)` | `ControlFlowErrorTest.vba`
+  - 注: `Print #`, `Line Input #`, `Put #` は既に `throwVbaError(52)` 実装済み
 
 ### Error 91 — Object variable or With block variable not set
 

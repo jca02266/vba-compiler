@@ -17,7 +17,7 @@
 
 | ドキュメント | 説明 | 対象読者 |
 |-----------|------|--------|
-| **[TEST_FRAMEWORK_GUIDE.md](TEST_FRAMEWORK_GUIDE.md)** | JavaScript テストフレームワークで VBA をテスト | テストコード実装者 |
+| **[TEST_FRAMEWORK_GUIDE.md](TEST_FRAMEWORK_GUIDE.md)** | JavaScript テストフレームワークで VBA をテスト（VBATest API・Time Mocking 含む） | テストコード実装者 |
 | **[MOCK_GUIDE.md](MOCK_GUIDE.md)** | Excel オブジェクトのモック実装方法（3 段階） | Excel 依存を避けられない場合 |
 
 ### グループ3：具体例（学習用）
@@ -247,9 +247,10 @@ TESTING_STRATEGY.md（最上位の原則）
 
 **主要セクション**:
 - Jest との統合方法
-- 6 つのテストパターン
-- VBATest クラスの使い方
-- よくあるエラーと対応
+- 7 つのテストパターン（パターン7: Time Mocking 含む）
+- **VBATest API リファレンス**（`run` / `eval` / `set` / `mockDate` / `registerExternalObject`）
+- エラーデバッグ情報（`err.vbaLine` / `err.number`）
+- よくある質問
 
 **主なメッセージ**:
 > JavaScript テストフレームワークを活用することで、VBA テストが身近で効率的になる
@@ -377,6 +378,12 @@ TESTING_STRATEGY.md
 
 ### 「テスト設計の原則を理解したい」
 → **[TESTING_STRATEGY.md](TESTING_STRATEGY.md)** 全体
+
+### 「`Now()` など日時依存のコードをテストしたい」
+→ **[TEST_FRAMEWORK_GUIDE.md — パターン7](TEST_FRAMEWORK_GUIDE.md)** (`vbaTest.mockDate()`)
+
+### 「VBATest の API を確認したい」
+→ **[TEST_FRAMEWORK_GUIDE.md — VBATest API リファレンス](TEST_FRAMEWORK_GUIDE.md)**
 
 ### 「型の動作がおかしい / 型機能を追加したい」
 → **[TYPE_SYSTEM_SPEC.md](TYPE_SYSTEM_SPEC.md)**（内部実装の詳細を参照）

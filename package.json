@@ -14,7 +14,6 @@
     "vscode": "^1.90.0"
   },
   "main": "./dist/extension.cjs",
-  "browser": "./dist/extension-web.cjs",
   "activationEvents": [
     "onStartupFinished"
   ],
@@ -45,9 +44,8 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && npm run build:extension && npm run build:extension:web",
+    "build": "tsc -b && vite build && npm run build:extension",
     "build:extension": "esbuild src/extension.ts --bundle --outfile=dist/extension.cjs --platform=node --external:vscode",
-    "build:extension:web": "esbuild src/extension-web.ts --bundle --outfile=dist/extension-web.cjs --platform=browser --external:vscode --alias:path=path-browserify",
     "lint": "eslint .",
     "preview": "vite preview",
     "package": "vsce package --no-dependencies",
@@ -57,14 +55,12 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.2.0",
     "lucide-react": "^0.575.0",
-    "path-browserify": "^1.0.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",
     "@types/node": "^25.3.0",
-    "@types/path-browserify": "^1.0.3",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@types/vscode": "^1.90.0",

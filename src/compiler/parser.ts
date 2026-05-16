@@ -523,7 +523,12 @@ export class Parser {
         this._diagnostics.push({ message, loc: { start: pos, end: pos }, severity: 'error' });
     }
 
-    private syncToNextStatement(): void {
+    private syncToNextTopLevelStatement(): void {
+        // After a parse error, skip tokens until we find what looks like
+        // the start of a new top-level statement. We always advance at least
+        // one token to guarantee forward progress, then advance until we hit
+        // a Newline. The Newline itself is left for parse()'s skipNewlines().
+        // This is coarse but keeps the parser state consistent.
         while (
             this.peek().type !== TokenType.EOF &&
             this.peek().type !== TokenType.Newline
@@ -924,9 +929,21 @@ export class Parser {
 
         this.skipNewlines();
         while (this.peek().type !== TokenType.EOF) {
-            const stmt = this.parseStatement();
-            if (stmt) {
-                program.body.push(stmt);
+            const startPos = this.pos;
+            const startToken = this.peek();
+            try {
+                const stmt = this.parseStatement();
+                if (stmt) {
+                    program.body.push(stmt);
+                }
+            } catch (e) {
+                const msg = e instanceof Error ? e.message : String(e);
+                this.recordError(msg, startToken);
+                this.syncToNextTopLevelStatement();
+            }
+            // Defensive: ensure forward progress even if a parser returns without advancing
+            if (this.pos === startPos && this.peek().type !== TokenType.EOF) {
+                this.advance();
             }
             this.skipNewlines();
         }
@@ -942,15 +959,7 @@ export class Parser {
     private parseStatement(): Statement | null {
         this.skipNewlines();
         const startToken = this.peek();
-        let stmt: Statement | null;
-        try {
-            stmt = this.parseStatementInner();
-        } catch (e) {
-            const msg = e instanceof Error ? e.message : String(e);
-            this.recordError(msg, startToken);
-            this.syncToNextStatement();
-            return null;
-        }
+        const stmt = this.parseStatementInner();
         if (stmt !== null) {
             const endToken = this.tokens[this.pos - 1];
             if (startToken.line !== undefined) {

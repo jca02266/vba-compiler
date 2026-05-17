@@ -33,6 +33,7 @@ interface ProcedureMetrics {
     excelAccessSamples: Array<{ line: number; expr: string }>;
     excelObjectsUsed: string[];           // 例: ['Sheets', 'Range', 'Application'] - モック必要候補
     repeatedNumericLiterals: Array<{ value: string; occurrences: number; lines: number[] }>;
+    magicLiteralsInCalls: Array<{ callee: string; argIndex: number; value: string | number; lines: number[] }>;
     referenceCount: number;               // 他のプロシージャから呼ばれている回数（クロスファイル含む）
 }
 
@@ -316,6 +317,115 @@ function collectProcedureCalls(stmts: any, definedTypes: Set<string>): Set<strin
     // UDT 型名は呼び出しではないので除外
     for (const t of definedTypes) calls.delete(t.toLowerCase());
     return calls;
+}
+
+// ---------------------------------------------------------
+// Range/Cells/Sheets 引数の即値検出
+// ---------------------------------------------------------
+
+const RANGE_CELLS_SHEETS = new Set(['range', 'cells', 'sheets', 'worksheets']);
+
+// callee名（小文字）→ 位置引数の名前テーブル。不明な位置は undefined（argN にフォールバック）
+const CALLEE_PARAM_NAMES: Record<string, string[]> = {
+    cells:          ['RowIndex', 'ColumnIndex'],
+    'cells.item':   ['RowIndex', 'ColumnIndex'],
+    'cells()':      ['RowIndex', 'ColumnIndex'],
+    range:          ['Cell1', 'Cell2'],
+    'range.item':   ['RowIndex', 'ColumnIndex'],
+    'range()':      ['RowIndex', 'ColumnIndex'],
+    sheets:         ['Index'],
+    'sheets.item':  ['Index'],
+    worksheets:     ['Index'],
+    'worksheets.item': ['Index'],
+};
+
+export function paramName(callee: string, argIndex: number): string {
+    const names = CALLEE_PARAM_NAMES[callee.toLowerCase()];
+    return names?.[argIndex] ?? `arg${argIndex + 1}`;
+}
+
+export function findMagicLiteralsInCalls(
+    stmts: any,
+): Array<{ callee: string; argIndex: number; value: string | number; lines: number[] }> {
+    const raw: Array<{ line: number; callee: string; argIndex: number; value: string | number }> = [];
+
+    function getCalleeName(callee: any): string | null {
+        if (!callee) return null;
+        if (callee.type === 'Identifier') return callee.name;
+        if (callee.type === 'MemberExpression') {
+            const prop = callee.property;
+            return prop?.name ?? (typeof prop === 'string' ? prop : null);
+        }
+        return null;
+    }
+
+    // X / X.prop / X(...) の「末端オブジェクト名」を返す（.Item 検出用）
+    function getObjectName(node: any): string | null {
+        if (!node) return null;
+        if (node.type === 'Identifier') return node.name;
+        if (node.type === 'MemberExpression') {
+            const prop = node.property;
+            return prop?.name ?? (typeof prop === 'string' ? prop : null);
+        }
+        if (node.type === 'CallExpression') return getCalleeName(node.callee);
+        return null;
+    }
+
+    function pushLiterals(callNode: any, label: string): void {
+        const args: any[] = callNode.args ?? [];
+        args.forEach((arg, i) => {
+            if (arg.type === 'NumberLiteral' || arg.type === 'StringLiteral') {
+                raw.push({
+                    line: callNode.callee?.loc?.start?.line ?? arg.loc?.start?.line ?? -1,
+                    callee: label,
+                    argIndex: i,
+                    value: arg.value,
+                });
+            }
+        });
+    }
+
+    function visit(node: any): void {
+        if (!node || typeof node !== 'object') return;
+        if (node.type === 'CallExpression') {
+            const callee = node.callee;
+            const calleeName = getCalleeName(callee);
+
+            if (calleeName && RANGE_CELLS_SHEETS.has(calleeName.toLowerCase())) {
+                // Cells(3,5) / ws.Cells(3,5) / Worksheets("X") / Range("A1")
+                pushLiterals(node, calleeName);
+            } else if (callee?.type === 'MemberExpression' && calleeName?.toLowerCase() === 'item') {
+                // Cells.Item(3,5) / ws.Cells.Item(3,5) / Range("A1:B3").Item(3,5)
+                const objName = getObjectName(callee.object);
+                if (objName && RANGE_CELLS_SHEETS.has(objName.toLowerCase())) {
+                    pushLiterals(node, objName + '.Item');
+                }
+            } else if (callee?.type === 'CallExpression') {
+                // Range("A1:B3")(3,5) — Range 結果への直接インデックス
+                const innerName = getCalleeName(callee.callee);
+                if (innerName && RANGE_CELLS_SHEETS.has(innerName.toLowerCase())) {
+                    pushLiterals(node, innerName + '()');
+                }
+            }
+        }
+        for (const key of Object.keys(node)) {
+            if (key === 'loc') continue;
+            const v = node[key];
+            if (Array.isArray(v)) v.forEach(visit);
+            else if (v && typeof v === 'object' && v.type) visit(v);
+        }
+    }
+
+    if (isStatementArray(stmts)) for (const s of stmts) visit(s);
+
+    // (callee, argIndex, value) でグループ化して出現行リストを返す
+    const buckets = new Map<string, { callee: string; argIndex: number; value: string | number; lines: number[] }>();
+    for (const r of raw) {
+        const key = `${r.callee}:${r.argIndex}:${r.value}`;
+        if (!buckets.has(key)) buckets.set(key, { callee: r.callee, argIndex: r.argIndex, value: r.value, lines: [] });
+        buckets.get(key)!.lines.push(r.line);
+    }
+    return [...buckets.values()].sort((a, b) => a.lines[0] - b.lines[0]);
 }
 
 function findRepeatedNumericLiterals(
@@ -783,6 +893,7 @@ function analyzeFile(filePath: string): FileAnalysis {
 
         const excel = findExcelAccess(proc.body);
         const numericLits = findRepeatedNumericLiterals(proc.body);
+        const magicLits = findMagicLiteralsInCalls(proc.body);
         const procName = proc.name?.name ?? '<anonymous>';
 
         definedProcs.set(procName.toLowerCase(), { proc, kind, scope });
@@ -802,6 +913,7 @@ function analyzeFile(filePath: string): FileAnalysis {
             excelAccessSamples: excel.samples,
             excelObjectsUsed: excel.objectsUsed,
             repeatedNumericLiterals: numericLits.slice(0, 10),
+            magicLiteralsInCalls: magicLits,
             referenceCount: 0,  // 後段のワークスペース解析で埋める
         };
     });
@@ -977,6 +1089,18 @@ function formatFileReport(r: FileReport): string {
         if (p.repeatedNumericLiterals.length) {
             const top = p.repeatedNumericLiterals.slice(0, 5);
             out.push(`    繰り返し数値リテラル: ${top.map(n => `${n.value}(×${n.occurrences})`).join(', ')}`);
+        }
+        if (p.magicLiteralsInCalls.length) {
+            out.push(`    📌 即値引数（定数化候補）: ${p.magicLiteralsInCalls.length}種`);
+            for (const m of p.magicLiteralsInCalls.slice(0, 10)) {
+                const val = typeof m.value === 'string' ? `"${m.value}"` : String(m.value);
+                const linesStr = m.lines.map(l => `L${l}`).join(', ');
+                const pname = paramName(m.callee, m.argIndex);
+                out.push(`      ${m.callee}(${pname}=${val}): ${m.lines.length}件 [${linesStr}]`);
+            }
+            if (p.magicLiteralsInCalls.length > 10) {
+                out.push(`      ... 他 ${p.magicLiteralsInCalls.length - 10} 種`);
+            }
         }
     }
 
@@ -1204,4 +1328,4 @@ function main() {
     console.log(formatWorkspaceSummary(workspace));
 }
 
-main();
+if (process.argv[1]?.includes('vba-analyzer')) main();

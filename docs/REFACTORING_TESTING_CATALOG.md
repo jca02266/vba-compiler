@@ -335,3 +335,30 @@ vbaRunner.setConstants(allConstants);  // xl*/vb* 定数を一括注入
 
 const result = vbaRunner.run('MyFunction', []);
 ```
+
+#### テキスト出力: 即値引数の検出（定数化候補）
+
+テキスト出力モードでは、`Range()`・`Cells()`・`Sheets()`・`Worksheets()` の引数に数値リテラル・文字列リテラルが使われている箇所をプロシージャ単位で報告します（[R-02](#r-02) / [R-09](#r-09) への足がかり）。同じ値・アクセス形式でまとめて何件・どの行番号に現れるかを表示します。
+
+複数ファイルをまたいだ横断集計はなく、ファイル・プロシージャごとに独立して出力されます。同じ即値が複数ファイルに散らばっている場合は、各ファイルの出力を個別に確認してください。
+
+```
+[Function] LoadData  (12行, L10-L21)
+    📌 即値引数（定数化候補）: 4種
+      Cells(RowIndex=3): 2件 [L11, L15]
+      Cells(ColumnIndex=5): 2件 [L11, L15]
+      Sheets(Index="Config"): 1件 [L12]
+      Worksheets(Index=2): 1件 [L14]
+```
+
+検出対象のアクセス形式:
+
+| 形式 | 例 | 検出 |
+|---|---|---|
+| 直接呼び出し | `Cells(3, 5)` | ✅ |
+| オブジェクト経由 | `ws.Cells(3, 5)` | ✅ |
+| `.Item()` 形式 | `Cells.Item(3, 5)` / `ws.Cells.Item(3, 5)` | ✅ |
+| Range 結果への直接インデックス | `Range("A1:B3")(3, 5)` | ✅ |
+| Range 結果の `.Item()` | `Range("A1:B3").Item(3, 5)` | ✅ |
+| `Worksheets()` | `Worksheets("Config")` / `Worksheets(1)` | ✅ |
+| Range 変数経由 | `rng.Item(3, 5)` / `rng(3, 5)` | ❌ 型追跡が必要 |

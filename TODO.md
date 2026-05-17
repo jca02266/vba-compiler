@@ -376,6 +376,10 @@
 
 VBA Runner の性質上、テストの安定性および検証精度の向上のために以下の実装を今後検討します。
 
+- **MockWorksheet の改善**:
+    - ❌ **1D 配列での単一行/列設定**: VBA では `Range("A1:A4").Value = Array(10,20,30,40)` のように 1D 配列で単一列（行）に書き込めるが、`MockWorksheet.setCellValue` は 2D 配列のみ対応。
+    - ❌ **配列サイズ不一致時のエラー検出**: 範囲と配列のサイズが合わない場合、VBA は Error 1004 を発生させるが、MockWorksheet はサイレントにスキップ/空文字填充する。
+    - ❌ **`Range().Value =` の書き戻し**: VBA では `ws.Range("A1:B3").Value = array` でセルに書き込めるが、MockWorksheet では `setCellValue` を使わないとセルに反映されない。
 - **副作用の検証機能 (Spy / Verify)**:
     - `Shell` や `MsgBox` 等のスタブ・モック関数に対して渡された引数（実行コマンド名やメッセージ内容）を、テストコード側からプログラム的に検証（アサーション）できる仕組み。
     - 現状：`Debug.Print` 相当のコンソール出力のみ。

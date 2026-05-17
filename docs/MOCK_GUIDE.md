@@ -586,11 +586,101 @@ ws.setCellValue('A1:B3', [
 // A1=1, B1=2, A2=3, B2=4, ...
 ```
 
-読み取る場合は、範囲内のセルを 2D 配列として再構築：
+#### 補足: 単一セルと範囲の違い
+
+`Range()` に渡すアドレスが単一セルか範囲かで、`.Value` の型が変わります：
 
 ```typescript
-const range = ws.Range('A1:B3').Value;
-// [[1, 2], [3, 4], [5, 6]] として返される
+ws.setCellValue('A1', 42);
+ws.setCellValue('A1:B3', [[1,2],[3,4],[5,6]]);
+
+ws.Range('A1').Value;      // → 42（スカラー）
+ws.Range('A1:B3').Value;   // → [[1,2],[3,4],[5,6]]（2D配列）
+```
+
+VBA 側のコードがスカラーを期待しているか 2D 配列を期待しているかは、そのコードが単一セルか範囲を操作しているかで決まります。
+
+#### 補足: 1行・1列の範囲の扱い
+
+**読み取り**時は、1 行または 1 列しかない範囲でも常に 2D 配列を返します（VBA・MockWorksheet ともに同じ）：
+
+```typescript
+ws.Range('A1:A4').Value;   // → [[10],[20],[30],[40]]  （4行1列の2D）
+ws.Range('A1:D1').Value;   // → [[10,20,30,40]]        （1行4列の2D）
+```
+
+**設定**時は、VBA では 1 行/1 列の範囲に 1D 配列を渡せますが、`MockWorksheet` は 2D 配列のみ対応しています：
+
+```vba
+' VBA では OK（1D 配列で1列に書き込み）
+Range("A1:A4").Value = Array(10, 20, 30, 40)
+```
+
+```typescript
+// MockWorksheet では 2D で渡す必要がある
+ws.setCellValue('A1:A4', [[10],[20],[30],[40]]);
+```
+
+#### 補足: 単一値を範囲全体に設定する
+
+スカラー値を渡すと、範囲内の全セルに同じ値が設定されます（VBA・MockWorksheet ともに同じ動作）：
+
+```vba
+' VBA
+Range("A1:B3").Value = 0   ' 6セルすべてが 0 になる
+```
+
+```typescript
+// MockWorksheet
+ws.setCellValue('A1:B3', 0);  // 6セルすべてが 0 になる
+```
+
+#### 補足: 範囲と配列のサイズが異なる場合
+
+| ケース | VBA の挙動 | MockWorksheet の挙動 |
+|---|---|---|
+| 配列の行数が範囲より少ない | Error 1004（サイズ不一致） | 不足行はスキップ（セル値は変わらない） |
+| 配列の列数が範囲より少ない | Error 1004 | 不足列は空文字 `''` で埋める |
+| 配列が範囲より大きい | 超過分は無視 | 超過分は無視（同じ） |
+
+テストデータを用意する際は、**範囲と配列のサイズを必ず一致させる**ことを推奨します。サイズ不一致の挙動が VBA と異なるため、意図せず異なる動作になる可能性があります。
+
+#### 補足: 範囲への書き込みは `setCellValue` を使う
+
+VBA では `Range("A1:B3").Value = array` でセルに書き込めますが、MockWorksheet では `ws.Range('A1:B3')` が返すオブジェクトへの `.Value =` はセルに反映されません。その後 `.Value` を読み直しても元の値のままです：
+
+```typescript
+ws.setCellValue('A1', 10);
+ws.Range('A1:B1').Value = [[99, 99]];         // 書いたつもり
+console.log(ws.Range('A1:B1').Value);          // → [[10, 0]]  変わっていない
+```
+
+範囲への書き込みは `setCellValue` を使ってください：
+
+```typescript
+ws.setCellValue('A1:B1', [[99, 99]]);
+console.log(ws.Range('A1:B1').Value);          // → [[99, 99]]  反映される
+```
+
+単一セル（`ws.Range('A1').Value = 99`）はセッタが cells マップに接続されているため正常に反映されます。
+
+#### 補足: VBA コードで 2D 配列を扱う場合
+
+VBA 側では 1-based 2 次元配列として受け取ります：
+
+```vba
+Dim v As Variant
+v = ws.Range("A1:B3").Value   ' v(1,1)〜v(3,2) の2次元配列
+Debug.Print v(1, 1)           ' 1行1列目
+Debug.Print v(3, 2)           ' 3行2列目
+```
+
+テスト側（TypeScript）では 0-based で読み取ります：
+
+```typescript
+const v = ws.Range('A1:B3').Value as any[][];
+v[0][0];  // 1行1列目
+v[2][1];  // 3行2列目
 ```
 
 ### 実装の特徴

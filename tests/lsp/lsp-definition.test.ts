@@ -7,7 +7,7 @@ function getDefinitionAt(src: string, line: number, character: number): any {
     const tokens = new Lexer(src).tokenize();
     const ast = new Parser(tokens).parse();
     const provider = new DefinitionProvider();
-    provider.setDocumentUri('file:///test.vba');
+    provider.setDocumentUri('file:///test.bas');
     return provider.getDefinition(ast.body, src, line, character);
 }
 
@@ -16,7 +16,7 @@ function getDefinitionAt(src: string, line: number, character: number): any {
     const code = 'Sub Foo()\nEnd Sub';
     const def = getDefinitionAt(code, 0, 4); // 'Foo'
     assert.ok(def, 'definition returned');
-    assert.strictEqual(def.uri, 'file:///test.vba', 'uri set');
+    assert.strictEqual(def.uri, 'file:///test.bas', 'uri set');
     assert.ok(def.range, 'range present');
     assert.strictEqual(def.range.start.line, 0, 'starts at line 0');
     console.log('[PASS] Sub definition found');
@@ -99,7 +99,7 @@ function getDefinitionAt(src: string, line: number, character: number): any {
     const code = 'Sub Foo()\nEnd Sub';
     const def = getDefinitionAt(code, 0, 4);
     assert.ok(def, 'definition returned');
-    assert.strictEqual(def.uri, 'file:///test.vba', 'uri matches');
+    assert.strictEqual(def.uri, 'file:///test.bas', 'uri matches');
     console.log('[PASS] URI set correctly');
 }
 

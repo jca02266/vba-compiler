@@ -3,7 +3,7 @@ import { VBARunner, assert } from '../../../test-libs/test-runner';
 async function main() {
     console.log("--- Starting Sample VBA Tests ---\n");
 
-    const vbaRunner = new VBARunner('sample/src/vba/Sample.vba');
+    const vbaRunner = new VBARunner('sample/src/vba/Sample.bas');
 
     // Test Add
     console.log("[Test] Add");

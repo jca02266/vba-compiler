@@ -451,7 +451,7 @@ assert.strictEqual(r, 300);`;
               Clear
             </button>
             <span className="w-2 h-2 rounded-full bg-green-500 ml-auto"></span>
-            main.vba
+            main.bas
           </div>
           <HighlightedEditor value={code} onChange={setCode} highlighter={highlightVBAFull} placeholder="Type your VBA code here..." />
         </section>

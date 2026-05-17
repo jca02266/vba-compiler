@@ -1,5 +1,5 @@
 /**
- * VBA Test Runner - .cls / .vba ファイルを自動実行
+ * VBA Test Runner - .cls / .bas ファイルを自動実行
  * tests/spec/vba/ 直下のファイルと各サブディレクトリを別スイートとして実行する。
  * テストプロシージャは test で始まる名前（大文字小文字を区別しない）で検出される。
  */
@@ -11,7 +11,7 @@ import { Lexer } from '../../../src/engine/lexer';
 import { Parser } from '../../../src/engine/parser';
 
 const vbaDir = path.join(__dirname);
-const VBA_EXTS = new Set(['.cls', '.vba']);
+const VBA_EXTS = new Set(['.cls', '.bas']);
 
 console.log('=== VBA Test Runner ===\n');
 

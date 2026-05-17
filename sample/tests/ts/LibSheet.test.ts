@@ -1,8 +1,8 @@
 import { VBARunner, assert } from '../../../test-libs/test-runner';
 
 async function main() {
-    console.log("--- Starting LibSheet.vba Unit Tests ---");
-    const vbaRunner = new VBARunner('sample/src/vba/LibSheet.vba');
+    console.log("--- Starting LibSheet.bas Unit Tests ---");
+    const vbaRunner = new VBARunner('sample/src/vba/LibSheet.bas');
 
     // Create mock Worksheet factory
     function createMockWorksheet(name: string): any {

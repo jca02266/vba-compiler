@@ -110,7 +110,7 @@ End Sub
 import { VBARunner } from './test-libs/test-runner';
 
 describe('Sales Calculation', () => {
-  const vbaRunner = new VBARunner('macro.vba');
+  const vbaRunner = new VBARunner('macro.bas');
 
   // ✅ 推奨：Domain Logic のみテスト
   it('should calculate total correctly', () => {
@@ -216,7 +216,7 @@ End Function
 
 ```typescript
 describe('Pure Functions', () => {
-  const vbaRunner = new VBARunner('math.vba');
+  const vbaRunner = new VBARunner('math.bas');
 
   it('SumArray: [100, 200, 300] = 600', () => {
     expect(vbaRunner.run('SumArray', [[100, 200, 300]])).toBe(600);
@@ -254,7 +254,7 @@ End Function
 
 ```typescript
 describe('Discount Calculation', () => {
-  const vbaRunner = new VBARunner('pricing.vba');
+  const vbaRunner = new VBARunner('pricing.bas');
 
   const testCases = [
     { price: 1000, discount: 0.1, expected: 900 },
@@ -312,7 +312,7 @@ End Sub
 
 ```typescript
 describe('Stateful Processing', () => {
-  const vbaRunner = new VBARunner('stateful.vba');
+  const vbaRunner = new VBARunner('stateful.bas');
 
   it('should process value and store state', () => {
     const result = vbaRunner.run('ProcessAndStore', [100]);
@@ -356,7 +356,7 @@ End Function
 
 ```typescript
 describe('Error Handling', () => {
-  const vbaRunner = new VBARunner('safe-math.vba');
+  const vbaRunner = new VBARunner('safe-math.bas');
 
   it('should raise error on division by zero', () => {
     expect(() => {
@@ -458,7 +458,7 @@ End Sub
 import { VBARunner } from './test-libs/test-runner';
 
 // テストファイル
-const vbaRunner = new VBARunner('src/vba/business-logic.vba');
+const vbaRunner = new VBARunner('src/vba/business-logic.bas');
 
 // テスト実行
 describe('Business Logic Tests', () => {

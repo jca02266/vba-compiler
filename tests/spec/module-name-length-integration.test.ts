@@ -15,7 +15,7 @@ if (!fs.existsSync(fixtureDir)) {
 
 // Test 1: Load VBA file with valid name (< 31 characters)
 const validName = 'ValidModule';
-const validFilePath = path.join(fixtureDir, validName + '.vba');
+const validFilePath = path.join(fixtureDir, validName + '.bas');
 fs.writeFileSync(validFilePath, 'Sub Test()\n  Debug.Print "OK"\nEnd Sub\n', 'utf-8');
 
 try {
@@ -28,7 +28,7 @@ try {
 
 // Test 2: Load VBA file with name exactly at the limit (31 characters)
 const limitName = 'A'.repeat(31);
-const limitFilePath = path.join(fixtureDir, limitName + '.vba');
+const limitFilePath = path.join(fixtureDir, limitName + '.bas');
 fs.writeFileSync(limitFilePath, 'Sub Test()\n  Debug.Print "OK"\nEnd Sub\n', 'utf-8');
 
 try {
@@ -41,7 +41,7 @@ try {
 
 // Test 3: Load VBA file with name exceeding limit (32 characters)
 const tooLongName = 'A'.repeat(32);
-const tooLongFilePath = path.join(fixtureDir, tooLongName + '.vba');
+const tooLongFilePath = path.join(fixtureDir, tooLongName + '.bas');
 fs.writeFileSync(tooLongFilePath, 'Sub Test()\n  Debug.Print "OK"\nEnd Sub\n', 'utf-8');
 
 try {
@@ -65,11 +65,11 @@ if (!fs.existsSync(testDir)) {
 }
 
 // Create a file with valid name
-const validFile = path.join(testDir, 'ValidModule.vba');
+const validFile = path.join(testDir, 'ValidModule.bas');
 fs.writeFileSync(validFile, 'Sub Helper()\n  Debug.Print "Helper"\nEnd Sub\n', 'utf-8');
 
 // Create a file with name that's too long
-const tooLongFile = path.join(testDir, 'B'.repeat(32) + '.vba');
+const tooLongFile = path.join(testDir, 'B'.repeat(32) + '.bas');
 fs.writeFileSync(tooLongFile, 'Sub AnotherSub()\n  Debug.Print "Too Long"\nEnd Sub\n', 'utf-8');
 
 try {

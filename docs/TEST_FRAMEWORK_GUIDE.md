@@ -70,7 +70,7 @@ tests/
 ### VBA コード
 
 ```vba
-' src/vba/math.vba
+' src/vba/math.bas
 Function Sum(a As Long, b As Long) As Long
     Sum = a + b
 End Function
@@ -87,7 +87,7 @@ End Function
 import { VBARunner } from '../../test-libs/test-runner';
 
 describe('Math Operations', () => {
-  const vbaRunner = new VBARunner('src/vba/math.vba');
+  const vbaRunner = new VBARunner('src/vba/math.bas');
 
   describe('Sum', () => {
     it('should add two positive numbers', () => {
@@ -135,7 +135,7 @@ describe('Math Operations', () => {
 ### VBA コード
 
 ```vba
-' src/vba/discount.vba
+' src/vba/discount.bas
 Function ApplyDiscount(price As Double, discountPercent As Double) As Double
     If discountPercent < 0 Or discountPercent > 100 Then
         Err.Raise 5  ' Invalid argument
@@ -150,7 +150,7 @@ End Function
 
 ```typescript
 describe('Discount Calculation', () => {
-  const vbaRunner = new VBARunner('src/vba/discount.vba');
+  const vbaRunner = new VBARunner('src/vba/discount.bas');
 
   const testCases = [
     { price: 1000, discount: 0, expected: 1000 },
@@ -179,7 +179,7 @@ describe('Discount Calculation', () => {
 
 ```typescript
 describe('Discount Calculation with test.each', () => {
-  const vbaRunner = new VBARunner('src/vba/discount.vba');
+  const vbaRunner = new VBARunner('src/vba/discount.bas');
 
   // Jest 標準：test.each
   test.each([
@@ -204,7 +204,7 @@ describe('Discount Calculation with test.each', () => {
 ### VBA コード
 
 ```vba
-' src/vba/array-ops.vba
+' src/vba/array-ops.bas
 Function SumArray(arr As Variant) As Long
     Dim i As Integer
     Dim total As Long
@@ -238,7 +238,7 @@ End Function
 
 ```typescript
 describe('Array Operations', () => {
-  const vbaRunner = new VBARunner('src/vba/array-ops.vba');
+  const vbaRunner = new VBARunner('src/vba/array-ops.bas');
 
   describe('SumArray', () => {
     it('should sum array of numbers', () => {
@@ -288,7 +288,7 @@ describe('Array Operations', () => {
 ### VBA コード
 
 ```vba
-' src/vba/error-handling.vba
+' src/vba/error-handling.bas
 Function SafeDivide(a As Long, b As Long) As Double
     If b = 0 Then
         Err.Raise 11  ' Division by zero
@@ -309,7 +309,7 @@ End Function
 
 ```typescript
 describe('Error Handling', () => {
-  const vbaRunner = new VBARunner('src/vba/error-handling.vba');
+  const vbaRunner = new VBARunner('src/vba/error-handling.bas');
 
   describe('SafeDivide', () => {
     it('should divide normally', () => {
@@ -350,7 +350,7 @@ describe('Error Handling', () => {
 ### VBA コード
 
 ```vba
-' src/vba/sales-logic.vba
+' src/vba/sales-logic.bas
 Type SalesData
     Month As String
     Amount As Long
@@ -384,7 +384,7 @@ End Function
 
 ```typescript
 describe('Sales Business Logic', () => {
-  const vbaRunner = new VBARunner('src/vba/sales-logic.vba');
+  const vbaRunner = new VBARunner('src/vba/sales-logic.bas');
 
   describe('CalculateCommission', () => {
     // テストケースマトリックス
@@ -436,7 +436,7 @@ describe('Sales Business Logic', () => {
 ### VBA コード
 
 ```vba
-' src/vba/file-ops.vba
+' src/vba/file-ops.bas
 Function ReadAndProcessFile(filePath As String) As String
     ' VBA Runner上では、仮想ファイルシステムから読み込み
     ' Domain Logic: ファイル内容を処理するだけ
@@ -448,7 +448,7 @@ End Function
 
 ```typescript
 describe('File Operations with VFS', () => {
-  const vbaRunner = new VBARunner('src/vba/file-ops.vba', {
+  const vbaRunner = new VBARunner('src/vba/file-ops.bas', {
     useVirtualFS: true
   });
 
@@ -482,7 +482,7 @@ describe('File Operations with VFS', () => {
 ### VBA コード
 
 ```vba
-' src/vba/fiscal-year.vba
+' src/vba/fiscal-year.bas
 Function IsCurrentFiscalYear(targetYear As Long) As Boolean
     ' 現在年度（4月始まり）を判定
     Dim nowDate As Date
@@ -510,7 +510,7 @@ describe('Fiscal Year Logic', () => {
   let vbaRunner: VBARunner;
 
   beforeEach(() => {
-    vbaRunner = new VBARunner('src/vba/fiscal-year.vba');
+    vbaRunner = new VBARunner('src/vba/fiscal-year.bas');
   });
 
   afterEach(() => {
@@ -692,7 +692,7 @@ describe('Database-like Operations', () => {
   let vbaRunner: VBARunner;
 
   beforeEach(() => {
-    vbaRunner = new VBARunner('src/vba/db.vba');
+    vbaRunner = new VBARunner('src/vba/db.bas');
     // 各テスト前にリセット
   });
 

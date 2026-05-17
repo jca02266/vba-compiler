@@ -97,11 +97,11 @@ function runFunc(code: string, name: string, args: any[] = []): any {
 ```
 tests/spec/vba/
 ├── Circular/               ← 複数ファイルが必要なテストはサブディレクトリに
-│   ├── TerminateTest.vba  ← テストプロシージャを含む（"Test"サフィックス）
+│   ├── TerminateTest.bas  ← テストプロシージャを含む（"Test"サフィックス）
 │   ├── RefA.cls            ← テスト専用クラス（短い名前）
 │   ├── RefB.cls
 │   └── Helper.cls
-├── ArgCountTest.vba        ← 単一ファイルで完結するテスト
+├── ArgCountTest.bas        ← 単一ファイルで完結するテスト
 └── AssertHelper.cls        ← 全テスト共通のインフラクラス
 ```
 

@@ -26,7 +26,7 @@
           "vba"
         ],
         "extensions": [
-          ".vba",
+          ".bas",
           ".bas",
           ".cls",
           ".frm"
@@ -37,7 +37,7 @@
     "grammars": [
       {
         "language": "vba",
-        "scopeName": "source.vba",
+        "scopeName": "source.bas",
         "path": "./syntaxes/vba.tmLanguage.json"
       }
     ]

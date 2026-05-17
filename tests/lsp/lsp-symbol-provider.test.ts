@@ -7,7 +7,7 @@ function parseAndExtract(src: string): any[] {
     const tokens = new Lexer(src).tokenize();
     const ast = new Parser(tokens).parse();
     const provider = new SymbolProvider();
-    provider.setDocumentUri('file:///test.vba');
+    provider.setDocumentUri('file:///test.bas');
     return provider.extractSymbols(ast.body);
 }
 
@@ -89,7 +89,7 @@ function parseAndExtract(src: string): any[] {
     const syms = parseAndExtract('Sub Test()\nEnd Sub');
     const sym = syms[0];
     assert.ok(sym.location, 'location present');
-    assert.strictEqual(sym.location.uri, 'file:///test.vba', 'uri is set');
+    assert.strictEqual(sym.location.uri, 'file:///test.bas', 'uri is set');
     assert.ok(sym.location.range, 'range present');
     assert.ok(typeof sym.location.range.start.line === 'number', 'start.line is number');
     assert.ok(typeof sym.location.range.start.character === 'number', 'start.character is number');

@@ -7,7 +7,7 @@ import { NodeFileSystem } from '../src/engine/node_filesystem';
 import { MemoryFileSystem } from '../src/engine/filesystem';
 export { vbaTrue, vbaFalse, vbaNull, vbaEmpty };
 
-const VBA_EXTENSIONS = new Set(['.vba', '.bas', '.cls', '.frm']);
+const VBA_EXTENSIONS = new Set(['.bas', '.bas', '.cls', '.frm']);
 
 export class VBARunner {
     public evaluator: Evaluator;
@@ -72,7 +72,7 @@ export class VBARunner {
      *
      * @example
      *   import { createRegExpMock } from '../../test-libs/regexp-mock';
-     *   const vbaRunner = new VBARunner('source.vba');
+     *   const vbaRunner = new VBARunner('source.bas');
      *   vbaRunner.registerExternalObject('VBScript.RegExp', createRegExpMock);
      */
     registerExternalObject(progId: string, factory: () => any): void {

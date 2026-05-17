@@ -43,8 +43,8 @@ function compileVba(code: string): Evaluator {
   console.log('\n[Test 1] Simple Task Scheduling');
 
   // VBA コード読み込み
-  const schedulerCode = readVbaFile('TaskScheduler.vba');
-  const coreCode = readVbaFile('TaskScheduler_Core.vba');
+  const schedulerCode = readVbaFile('TaskScheduler.bas');
+  const coreCode = readVbaFile('TaskScheduler_Core.bas');
   const combinedCode = coreCode + '\n' + schedulerCode;
 
   // VBA コンパイル

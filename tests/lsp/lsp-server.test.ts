@@ -30,7 +30,7 @@ function createServer(): LSPServer {
 // 3. didOpen stores document
 {
     const server = createServer();
-    const uri = 'file:///test.vba';
+    const uri = 'file:///test.bas';
     const content = 'Sub Test()\nEnd Sub';
     server.didOpen(uri, content);
     // No direct getter, but we can verify by calling a method that uses the document
@@ -42,7 +42,7 @@ function createServer(): LSPServer {
 // 4. didChange updates document
 {
     const server = createServer();
-    const uri = 'file:///test.vba';
+    const uri = 'file:///test.bas';
     server.didOpen(uri, 'Sub Test()\nEnd Sub');
     server.didChange(uri, 'Sub Test2()\nEnd Sub');
     const symbols = server.getDocumentSymbols(uri);
@@ -54,7 +54,7 @@ function createServer(): LSPServer {
 // 5. didClose removes document
 {
     const server = createServer();
-    const uri = 'file:///test.vba';
+    const uri = 'file:///test.bas';
     server.didOpen(uri, 'Sub Test()\nEnd Sub');
     server.didClose(uri);
     const symbols = server.getDocumentSymbols(uri);
@@ -65,7 +65,7 @@ function createServer(): LSPServer {
 // 6. getDocumentSymbols extracts procedures and classes
 {
     const server = createServer();
-    const uri = 'file:///test.vba';
+    const uri = 'file:///test.bas';
     const code = `
 Sub MySub()
 End Sub
@@ -87,7 +87,7 @@ End Class
 // 7. getHover returns hover info
 {
     const server = createServer();
-    const uri = 'file:///test.vba';
+    const uri = 'file:///test.bas';
     const code = `
 Sub Test()
     Dim x As Integer
@@ -102,7 +102,7 @@ End Sub
 // 8. getDefinition returns definition location
 {
     const server = createServer();
-    const uri = 'file:///test.vba';
+    const uri = 'file:///test.bas';
     const code = `
 Sub MyProc()
 End Sub
@@ -120,7 +120,7 @@ End Sub
 // 9. getCompletions returns completion items
 {
     const server = createServer();
-    const uri = 'file:///test.vba';
+    const uri = 'file:///test.bas';
     const code = `
 Sub Test()
     Dim x As String
@@ -136,7 +136,7 @@ End Sub
 // 10. discoverTests finds test procedures
 {
     const server = createServer();
-    const uri = 'file:///test.vba';
+    const uri = 'file:///test.bas';
     const code = `
 Sub Test_FirstTest()
 End Sub
@@ -156,7 +156,7 @@ End Sub
 // 11. runTests executes tests
 {
     const server = createServer();
-    const uri = 'file:///test.vba';
+    const uri = 'file:///test.bas';
     const code = `
 Sub Test_Simple()
 End Sub
@@ -170,7 +170,7 @@ End Sub
 // 12. createDebugAdapter creates adapter for document
 {
     const server = createServer();
-    const uri = 'file:///test.vba';
+    const uri = 'file:///test.bas';
     const code = 'Sub Test()\nEnd Sub';
     server.didOpen(uri, code);
     const adapter = server.createDebugAdapter(uri);
@@ -182,7 +182,7 @@ End Sub
 // 13. getDebugAdapter retrieves stored adapter
 {
     const server = createServer();
-    const uri = 'file:///test.vba';
+    const uri = 'file:///test.bas';
     const code = 'Sub Test()\nEnd Sub';
     server.didOpen(uri, code);
     const created = server.createDebugAdapter(uri);
@@ -194,7 +194,7 @@ End Sub
 // 14. getDebugAdapter returns null for nonexistent document
 {
     const server = createServer();
-    const adapter = server.getDebugAdapter('file:///nonexistent.vba');
+    const adapter = server.getDebugAdapter('file:///nonexistent.bas');
     assert.strictEqual(adapter, null, 'null returned for nonexistent document');
     console.log('[PASS] getDebugAdapter returns null for missing document');
 }
@@ -202,8 +202,8 @@ End Sub
 // 15. Multiple documents are handled independently
 {
     const server = createServer();
-    const uri1 = 'file:///file1.vba';
-    const uri2 = 'file:///file2.vba';
+    const uri1 = 'file:///file1.bas';
+    const uri2 = 'file:///file2.bas';
 
     server.didOpen(uri1, 'Sub Test1()\nEnd Sub');
     server.didOpen(uri2, 'Sub Test2()\nEnd Sub');

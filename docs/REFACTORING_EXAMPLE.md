@@ -2,7 +2,7 @@
 
 ## 概要
 
-このドキュメントは、**実際のレガシーコード（TaskScheduler_v1.vba）をリファクタリングして（TaskScheduler.vba + TaskScheduler_Core.vba）どのように改善されたか、具体的に示します**。
+このドキュメントは、**実際のレガシーコード（TaskScheduler_v1.vba）をリファクタリングして（TaskScheduler.bas + TaskScheduler_Core.vba）どのように改善されたか、具体的に示します**。
 
 ### 対象コード
 
@@ -18,7 +18,7 @@
 ### 問題 1: 単一の巨大 Sub（393 行）
 
 ```vba
-' TaskScheduler_v1.vba
+' TaskScheduler_v1.bas
 Sub AutoScheduleTasks()
     ' Const 定義 (50 行)
     Const COL_CALENDAR_START_IDX As Long = 24
@@ -100,7 +100,7 @@ Next
 
 ---
 
-## TaskScheduler_v1.vba の処理概要
+## TaskScheduler_v1.bas の処理概要
 
 このセクションでは、リファクタリング前の TaskScheduler_v1.vba（393 行の巨大 Sub）がどのような処理フローを実装しているのか、詳細に説明します。このコードは実業務で必要な複雑なロジックを含んでいますが、すべてが 1 つの Sub に詰め込まれているため、その複雑さが明らかになりにくくなっています。
 
@@ -389,7 +389,7 @@ Application.EnableEvents = eventsState
 
 ### Excel との密結合によるテスト困難性
 
-TaskScheduler_v1.vba の最も深刻な問題が、**Excel との密結合**です。ビジネスロジックと I/O 操作が混在しているため、**VBA Runner で単体テスト不可能**になっています。
+TaskScheduler_v1.bas の最も深刻な問題が、**Excel との密結合**です。ビジネスロジックと I/O 操作が混在しているため、**VBA Runner で単体テスト不可能**になっています。
 
 #### 問題 1: Excel シート依存
 
@@ -1037,10 +1037,10 @@ End Type
 
 ### VBA 側の実装
 
-`GetSetting` は [`sample/src/vba/LibSheet.vba`](../sample/src/vba/LibSheet.vba) に実装されています。シート名・テーブル名は埋め込まず、呼び出し元が `ListObject` を取得して渡します。
+`GetSetting` は [`sample/src/vba/LibSheet.vba`](../sample/src/vba/LibSheet.bas) に実装されています。シート名・テーブル名は埋め込まず、呼び出し元が `ListObject` を取得して渡します。
 
 ```vba
-' LibSheet.vba
+' LibSheet.bas
 Function GetSetting(tbl As ListObject, itemName As String) As Variant
     Dim colItem As ListColumn
     Dim colValue As ListColumn

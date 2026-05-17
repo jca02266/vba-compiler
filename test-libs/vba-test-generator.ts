@@ -36,12 +36,12 @@ export class VBATestGenerator {
     }
 
     /**
-     * モジュール名を抽出（ファイル名から .vba 拡張子を除いたもの）
+     * モジュール名を抽出（ファイル名から .bas 拡張子を除いたもの）
      * @param filePath ファイルパス
      * @returns モジュール名
      */
     static extractModuleName(filePath: string): string {
-        return path.basename(filePath, '.vba');
+        return path.basename(filePath, '.bas');
     }
 
     /**
@@ -172,7 +172,7 @@ export class VBATestGenerator {
     /**
      * ディレクトリ内のすべての VBA テストファイルに対してランナーを生成
      * @param dirPath ディレクトリパス
-     * @param outputDir 出力ディレクトリ（指定しない場合は元のファイルの隣に _runner.vba で出力）
+     * @param outputDir 出力ディレクトリ（指定しない場合は元のファイルの隣に _runner.bas で出力）
      * @param useModuleQualifier モジュール修飾を使用するか（デフォルト: true）
      */
     static generateForDirectory(dirPath: string, outputDir?: string, useModuleQualifier: boolean = true): void {
@@ -181,11 +181,11 @@ export class VBATestGenerator {
         }
 
         const files = fs.readdirSync(dirPath)
-            .filter(f => f.toLowerCase().endsWith('.vba'))
+            .filter(f => f.toLowerCase().endsWith('.bas'))
             .sort();
 
         if (files.length === 0) {
-            console.error(`No .vba files found in ${dirPath}`);
+            console.error(`No .bas files found in ${dirPath}`);
             return;
         }
 
@@ -193,7 +193,7 @@ export class VBATestGenerator {
 
         for (const file of files) {
             const inputPath = path.join(dirPath, file);
-            const baseName = path.basename(file, '.vba');
+            const baseName = path.basename(file, '.bas');
             const runnerName = 'RunAllTests';
 
             let outputPath: string | undefined;
@@ -201,9 +201,9 @@ export class VBATestGenerator {
                 if (!fs.existsSync(outputDir)) {
                     fs.mkdirSync(outputDir, { recursive: true });
                 }
-                outputPath = path.join(outputDir, baseName + '_runner.vba');
+                outputPath = path.join(outputDir, baseName + '_runner.bas');
             } else {
-                outputPath = path.join(dirPath, baseName + '_runner.vba');
+                outputPath = path.join(dirPath, baseName + '_runner.bas');
             }
 
             try {
@@ -234,13 +234,13 @@ if (isMainModule || (typeof process !== 'undefined' && process.argv[1]?.includes
         console.error('');
         console.error('Examples:');
         console.error('  # Generate with module qualifiers (for real VBA environments)');
-        console.error('  npx ts-node test-libs/vba-test-generator.ts tests/spec/vba/Test_CurrencyOperations.vba');
+        console.error('  npx ts-node test-libs/vba-test-generator.ts tests/spec/vba/Test_CurrencyOperations.bas');
         console.error('');
         console.error('  # Generate without module qualifiers (for VBA interpreter)');
-        console.error('  npx ts-node test-libs/vba-test-generator.ts tests/spec/vba/Test_CurrencyOperations.vba --no-module-qualifier');
+        console.error('  npx ts-node test-libs/vba-test-generator.ts tests/spec/vba/Test_CurrencyOperations.bas --no-module-qualifier');
         console.error('');
         console.error('  # Generate and save to file');
-        console.error('  npx ts-node test-libs/vba-test-generator.ts tests/spec/vba/Test_CurrencyOperations.vba output.vba');
+        console.error('  npx ts-node test-libs/vba-test-generator.ts tests/spec/vba/Test_CurrencyOperations.bas output.bas');
         console.error('');
         console.error('  # Generate runners for all VBA files in a directory');
         console.error('  npx ts-node test-libs/vba-test-generator.ts --dir tests/spec/vba');

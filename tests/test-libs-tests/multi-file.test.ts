@@ -1,7 +1,7 @@
 /**
  * VBARunner マルチファイルロードのテスト
  *
- * tests/fixtures/multi-file/ に .vba / .cls / .frm の3ファイルを配置し、
+ * tests/fixtures/multi-file/ に .bas / .cls / .frm の3ファイルを配置し、
  * ディレクトリを指定するだけで全ファイルが同一スコープにロードされ
  * 相互参照できることを検証する。
  */
@@ -11,10 +11,10 @@ const DIR = 'tests/fixtures/multi-file';
 
 const suite = new VBARunner(DIR);
 
-// --- 1. .vba ファイルのプロシージャが呼べる ---
-assert.strictEqual(suite.run('Add', [3, 4]), 7, 'Add (MathUtils.vba)');
-assert.strictEqual(suite.run('Multiply', [6, 7]), 42, 'Multiply (MathUtils.vba)');
-console.log('[PASS] .vba ファイルのプロシージャ');
+// --- 1. .bas ファイルのプロシージャが呼べる ---
+assert.strictEqual(suite.run('Add', [3, 4]), 7, 'Add (MathUtils.bas)');
+assert.strictEqual(suite.run('Multiply', [6, 7]), 42, 'Multiply (MathUtils.bas)');
+console.log('[PASS] .bas ファイルのプロシージャ');
 
 // --- 2. .cls ファイルのプロシージャが呼べる ---
 assert.strictEqual(suite.run('Greet', ['World']), 'Hello, World!', 'Greet (StringUtils.bas)');
@@ -30,7 +30,7 @@ assert.strictEqual(
 console.log('[PASS] ファイル間の相互参照');
 
 // --- 4. 単一ファイル指定（後方互換）も引き続き動作する ---
-const single = new VBARunner('tests/fixtures/multi-file/MathUtils.vba');
+const single = new VBARunner('tests/fixtures/multi-file/MathUtils.bas');
 assert.strictEqual(single.run('Add', [1, 2]), 3, '単一ファイル指定の後方互換');
 console.log('[PASS] 単一ファイル指定（後方互換）');
 

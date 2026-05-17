@@ -25,7 +25,7 @@
     "comments": {
       "patterns": [
         {
-          "name": "comment.line.vba",
+          "name": "comment.line.bas",
           "begin": "'",
           "end": "$"
         }
@@ -34,7 +34,7 @@
     "strings": {
       "patterns": [
         {
-          "name": "string.quoted.double.vba",
+          "name": "string.quoted.double.bas",
           "begin": "\"",
           "end": "\"",
           "escapes": {
@@ -46,11 +46,11 @@
     "numbers": {
       "patterns": [
         {
-          "name": "constant.numeric.vba",
+          "name": "constant.numeric.bas",
           "match": "\\b(0|[1-9]\\d*)(\\.\\d+)?(e[+-]?\\d+)?\\b"
         },
         {
-          "name": "constant.numeric.hex.vba",
+          "name": "constant.numeric.hex.bas",
           "match": "&H[0-9A-F]+"
         }
       ]
@@ -58,15 +58,15 @@
     "keywords": {
       "patterns": [
         {
-          "name": "keyword.control.vba",
+          "name": "keyword.control.bas",
           "match": "\\b(If|Then|Else|ElseIf|End If|Select|Case|For|Next|While|Wend|Do|Loop|With|End With|Sub|End Sub|Function|End Function|Property|End Property|Class|End Class|Public|Private|Protected|Static|Dim|Const|ReDim|Erase|Set|Let|Call|Exit|Return|GoTo|On Error|Resume|Implements)\\b"
         },
         {
-          "name": "keyword.type.vba",
+          "name": "keyword.type.bas",
           "match": "\\b(As|Integer|Long|Double|String|Boolean|Date|Currency|Variant|Object|Byte)\\b"
         },
         {
-          "name": "constant.language.vba",
+          "name": "constant.language.bas",
           "match": "\\b(True|False|Nothing|Empty|Null)\\b"
         }
       ]
@@ -74,7 +74,7 @@
     "operators": {
       "patterns": [
         {
-          "name": "keyword.operator.vba",
+          "name": "keyword.operator.bas",
           "match": "(\\+|-|\\*|/|\\\\|\\^|&|=|<>|<|>|<=|>=|And|Or|Not|Mod|Like|Is)"
         }
       ]
@@ -82,11 +82,11 @@
     "identifiers": {
       "patterns": [
         {
-          "name": "variable.other.vba",
+          "name": "variable.other.bas",
           "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
         }
       ]
     }
   },
-  "scopeName": "source.vba"
+  "scopeName": "source.bas"
 }

@@ -39,10 +39,10 @@ const moduleB = `
 // 2 つのモジュールを別々にセットして評価
 const ev = new Evaluator(console.log);
 
-ev.setSourceModule('ModuleA.vba');
+ev.setSourceModule('ModuleA.bas');
 ev.evaluate(new Parser(new Lexer(moduleA).tokenize()).parse());
 
-ev.setSourceModule('ModuleB.vba');
+ev.setSourceModule('ModuleB.bas');
 ev.evaluate(new Parser(new Lexer(moduleB).tokenize()).parse());
 
 ev.setSourceModule('');
@@ -73,12 +73,12 @@ try {
         'エラーメッセージに Private プロシージャ名が含まれる'
     );
     assert.strictEqual(
-        e.message.includes('ModuleA.vba'),
+        e.message.includes('ModuleA.bas'),
         true,
         'エラーメッセージに定義元モジュールが含まれる'
     );
     assert.strictEqual(
-        e.message.includes('ModuleB.vba'),
+        e.message.includes('ModuleB.bas'),
         true,
         'エラーメッセージに呼び出し元モジュールが含まれる'
     );

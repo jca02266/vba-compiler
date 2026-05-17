@@ -86,8 +86,8 @@ function compileVba(code: string): Evaluator
 
 ```typescript
 // VBA を読み込んでコンパイル
-const schedulerCode = readVbaFile('TaskScheduler.vba');
-const coreCode = readVbaFile('TaskScheduler_Core.vba');
+const schedulerCode = readVbaFile('TaskScheduler.bas');
+const coreCode = readVbaFile('TaskScheduler_Core.bas');
 const combinedCode = coreCode + '\n' + schedulerCode;
 const ev = compileVba(combinedCode);
 

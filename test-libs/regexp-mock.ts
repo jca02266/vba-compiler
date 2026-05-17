@@ -7,7 +7,7 @@
  * 使い方:
  *   import { createRegExpMock } from '../../test-libs/regexp-mock';
  *
- *   const vbaRunner = new VBARunner('source.vba');
+ *   const vbaRunner = new VBARunner('source.bas');
  *   vbaRunner.registerExternalObject('VBScript.RegExp', createRegExpMock);
  *
  * 対応している API:

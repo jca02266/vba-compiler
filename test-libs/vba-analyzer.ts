@@ -34,6 +34,7 @@ interface ProcedureMetrics {
     excelObjectsUsed: string[];           // 例: ['Sheets', 'Range', 'Application'] - モック必要候補
     repeatedNumericLiterals: Array<{ value: string; occurrences: number; lines: number[] }>;
     magicLiteralsInCalls: Array<{ callee: string; argIndex: number; value: string | number; lines: number[] }>;
+    byRefAssignments: Array<{ paramName: string; paramType: string | null; lines: number[] }>;
     referenceCount: number;               // 他のプロシージャから呼ばれている回数（クロスファイル含む）
 }
 
@@ -342,6 +343,46 @@ const CALLEE_PARAM_NAMES: Record<string, string[]> = {
 export function paramName(callee: string, argIndex: number): string {
     const names = CALLEE_PARAM_NAMES[callee.toLowerCase()];
     return names?.[argIndex] ?? `arg${argIndex + 1}`;
+}
+
+export function findByRefAssignments(
+    proc: any,
+): Array<{ paramName: string; paramType: string | null; lines: number[] }> {
+    const byRefParams = new Map<string, string | null>();
+    for (const p of proc.parameters ?? []) {
+        if (!p.isByVal) {
+            byRefParams.set((p.name as string).toLowerCase(), p.paramType ?? null);
+        }
+    }
+    if (byRefParams.size === 0) return [];
+
+    const lines = new Map<string, number[]>();
+
+    function visit(node: any): void {
+        if (!node || typeof node !== 'object') return;
+        if (node.type === 'AssignmentStatement') {
+            const lhs = node.left;
+            const name = lhs?.type === 'Identifier' ? (lhs.name as string).toLowerCase() : null;
+            if (name && byRefParams.has(name)) {
+                if (!lines.has(name)) lines.set(name, []);
+                lines.get(name)!.push(lhs.loc?.start?.line ?? node.loc?.start?.line ?? -1);
+            }
+        }
+        for (const key of Object.keys(node)) {
+            if (key === 'loc') continue;
+            const v = node[key];
+            if (Array.isArray(v)) v.forEach(visit);
+            else if (v && typeof v === 'object' && v.type) visit(v);
+        }
+    }
+
+    for (const s of proc.body ?? []) visit(s);
+
+    return [...lines.entries()].map(([name, ls]) => ({
+        paramName: name,
+        paramType: byRefParams.get(name) ?? null,
+        lines: ls,
+    }));
 }
 
 export function findMagicLiteralsInCalls(
@@ -894,6 +935,7 @@ function analyzeFile(filePath: string): FileAnalysis {
         const excel = findExcelAccess(proc.body);
         const numericLits = findRepeatedNumericLiterals(proc.body);
         const magicLits = findMagicLiteralsInCalls(proc.body);
+        const byRefAssignments = findByRefAssignments(proc);
         const procName = proc.name?.name ?? '<anonymous>';
 
         definedProcs.set(procName.toLowerCase(), { proc, kind, scope });
@@ -914,6 +956,7 @@ function analyzeFile(filePath: string): FileAnalysis {
             excelObjectsUsed: excel.objectsUsed,
             repeatedNumericLiterals: numericLits.slice(0, 10),
             magicLiteralsInCalls: magicLits,
+            byRefAssignments,
             referenceCount: 0,  // 後段のワークスペース解析で埋める
         };
     });
@@ -1089,6 +1132,14 @@ function formatFileReport(r: FileReport): string {
         if (p.repeatedNumericLiterals.length) {
             const top = p.repeatedNumericLiterals.slice(0, 5);
             out.push(`    繰り返し数値リテラル: ${top.map(n => `${n.value}(×${n.occurrences})`).join(', ')}`);
+        }
+        if (p.byRefAssignments.length) {
+            out.push(`    ⚠️  ByRef パラメータへの代入（UDT 戻り値リファクタリング候補）:`);
+            for (const b of p.byRefAssignments) {
+                const typeStr = b.paramType ? ` As ${b.paramType}` : '';
+                const linesStr = b.lines.map(l => `L${l}`).join(', ');
+                out.push(`      ${b.paramName}${typeStr}: ${b.lines.length}件 [${linesStr}]`);
+            }
         }
         if (p.magicLiteralsInCalls.length) {
             out.push(`    📌 即値引数（定数化候補）: ${p.magicLiteralsInCalls.length}種`);

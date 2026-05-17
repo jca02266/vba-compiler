@@ -249,3 +249,35 @@ Unit Tests（70〜80%）→ Integration Tests（15〜25%）→ E2E / VBA IDE 手
 
 - [TESTING_STRATEGY.md](TESTING_STRATEGY.md)
 - [MOCK_GUIDE.md — §12](MOCK_GUIDE.md#12-テスト戦略段階的なテスト化)
+
+---
+
+## vba-analyzer ツール
+
+<a id="va-01"></a>
+### VA-01: vba-analyzer による静的解析支援
+
+`vba-analyzer` は VBA ソースを静的解析し、リファクタリング・テスト設計の手がかりとなる情報を JSON 形式で出力するツールです。
+
+```bash
+node test-libs/vba-analyzer.cjs src/vba/ --json
+```
+
+#### 主要出力フィールド
+
+| フィールド | 内容 | 活用手法 |
+|---|---|---|
+| `excelAccessCount` / `excelAccessSamples` | Excel オブジェクトへの直接アクセスを含む関数の数とサンプル。パラメータなしで Excel に依存している関数はリファクタリング候補の筆頭 | [R-01](#r-01) |
+| `prefixClusters` | 共通の接頭辞（例: `inv_Stock`, `inv_Min`）を持つ変数群のグルーピング候補。`Type` 化やクラス化の手がかりになる | [R-03](#r-03) / [R-04](#r-04) |
+| `excelMockTargets` | `Sheets`, `Range`, `Application` などへのアクセスを含む Function の一覧。Sub への切り出し（R-01）の対象候補 | [R-01](#r-01) |
+| `excelObjectsUsed` | VBA コード中で参照されている Excel オブジェクト名の一覧。モック注入が必要なオブジェクトを特定する | [T-10](#t-10) |
+
+#### 使用例
+
+```bash
+# リファクタリング候補を確認
+node test-libs/vba-analyzer.cjs src/vba/ --json | jq '.excelMockTargets'
+
+# モック対象オブジェクトを確認
+node test-libs/vba-analyzer.cjs src/vba/ --json | jq '.excelObjectsUsed'
+```

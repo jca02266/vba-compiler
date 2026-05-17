@@ -123,7 +123,7 @@ VBA 定数の数値は [Microsoft ドキュメント](https://learn.microsoft.co
 
 ---
 
-# 📍 Part 1: このプロジェクトの MockWorksheet を使う
+# 📍 Part 1: VBA Runner の MockWorksheet を使う
 
 ## 1. クイックスタート
 
@@ -1323,7 +1323,7 @@ class MockWorksheetWithUnion {
 - **`docs/REFACTORING_GUIDE.md`** — Domain Logic 分離（モック前に読む）
 - **`docs/INTEGRATION_TEST_EXAMPLE.md`** — 統合テストの実装例
 - **`docs/TEST_FRAMEWORK_GUIDE.md`** — JavaScript テストフレームワーク活用
-- **`tests/spec/mock-usage.test.ts`** — このプロジェクトのテスト実装例
+- **`tests/spec/mock-usage.test.ts`** — VBA Runner のテスト実装例
 - **`src/engine/mock/MockWorksheet.ts`** — MockWorksheet の実装ソース
 
 ---

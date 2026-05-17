@@ -49,7 +49,7 @@ export class DebugAdapter {
         };
     }
 
-    handleLaunch(args: any): any {
+    handleLaunch(_args: any): any {
         if (!this.initialized) {
             return { success: false, error: 'Not initialized' };
         }
@@ -74,7 +74,7 @@ export class DebugAdapter {
         return this.debugger.getThreads();
     }
 
-    handleStackTrace(threadId: number): StackFrame[] {
+    handleStackTrace(_threadId: number): StackFrame[] {
         return this.debugger.getStackFrames();
     }
 
@@ -82,32 +82,32 @@ export class DebugAdapter {
         return this.debugger.getVariables(frameId);
     }
 
-    handleContinue(threadId: number): boolean {
+    handleContinue(_threadId: number): boolean {
         this.debugger.continue();
         return true;
     }
 
-    handleStepOver(threadId: number): any {
+    handleStepOver(_threadId: number): any {
         this.debugger.stepOver();
         return { success: true };
     }
 
-    handleStepInto(threadId: number): any {
+    handleStepInto(_threadId: number): any {
         this.debugger.stepInto();
         return { success: true };
     }
 
-    handleStepOut(threadId: number): any {
+    handleStepOut(_threadId: number): any {
         this.debugger.stepOut();
         return { success: true };
     }
 
-    handlePause(threadId: number): any {
+    handlePause(_threadId: number): any {
         this.debugger.pause();
         return { success: true };
     }
 
-    handleEvaluate(expression: string, frameId: number, context?: string): any {
+    handleEvaluate(expression: string, _frameId: number, _context?: string): any {
         const result = this.debugger.evaluateExpression(expression);
 
         return {
@@ -117,7 +117,7 @@ export class DebugAdapter {
         };
     }
 
-    handleSetVariable(frameId: number, name: string, value: string): any {
+    handleSetVariable(_frameId: number, name: string, value: string): any {
         try {
             // Try to parse value as a number, otherwise treat as string
             let parsedValue: any = value;

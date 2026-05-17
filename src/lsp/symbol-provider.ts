@@ -3,7 +3,6 @@ import {
     ProcedureDeclaration,
     VariableDeclaration,
     Statement,
-    SourceLocation
 } from '../compiler/parser';
 
 export interface DocumentSymbol {

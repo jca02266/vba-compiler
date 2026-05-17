@@ -32,7 +32,6 @@ export class Debugger {
     private state: DebuggerState = 'initialized';
     private stackFrames: StackFrame[] = [];
     private variables: Map<string, any> = new Map();
-    private currentFrame: number = 0;
 
     constructor(ast: Program) {
         this.ast = ast;
@@ -129,7 +128,7 @@ export class Debugger {
     /**
      * Get variables at a given frame
      */
-    getVariables(frameId: number): Variable[] {
+    getVariables(_frameId: number): Variable[] {
         // Return variables for the given frame
         // In a real implementation, would extract from execution scope
         const vars: Variable[] = [];
@@ -141,9 +140,9 @@ export class Debugger {
                 // Add parameters as variables
                 for (const param of proc.parameters) {
                     vars.push({
-                        name: param.name.name,
+                        name: param.name,
                         value: '(parameter)',
-                        type: param.typeName || 'Variant',
+                        type: param.paramType || 'Variant',
                         variablesReference: 0,
                     });
                 }
@@ -170,7 +169,7 @@ export class Debugger {
     /**
      * Evaluate an expression in the current context
      */
-    evaluateExpression(expression: string): any {
+    evaluateExpression(_expression: string): any {
         // In a real implementation, would parse and evaluate the expression
         // For now, return undefined
         return undefined;

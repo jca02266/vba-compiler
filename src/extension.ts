@@ -1,6 +1,4 @@
 import * as vscode from 'vscode';
-import { Lexer } from './compiler/lexer';
-import { Parser } from './compiler/parser';
 import { LSPServer } from './lsp/server';
 
 let lspServer: LSPServer;
@@ -169,7 +167,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     };
 
-    testController.runHandler = async (request, cancellation) => {
+    testController.createRunProfile('Run', vscode.TestRunProfileKind.Run, async (request, _cancellation) => {
         for (const item of request.include || []) {
             const uri = item.uri?.toString();
             if (uri) {
@@ -181,15 +179,14 @@ export async function activate(context: vscode.ExtensionContext) {
                         if (result.state === 'passed') {
                             test.busy = false;
                         } else if (result.state === 'failed') {
-                            const message = new vscode.TestMessage(result.error || 'Test failed');
-                            test.error = message;
+                            test.error = result.error || 'Test failed';
                             test.busy = false;
                         }
                     }
                 }
             }
         }
-    };
+    }, true);
 
     outputChannel.appendLine('✓ All providers registered successfully');
     outputChannel.appendLine('📝 Open a .vba file and hover over code to test LSP features');

@@ -141,7 +141,7 @@ export class CompletionProvider {
                             symbols.push({
                                 label: d.name.name,
                                 kind: CompletionItemKind.Property,
-                                detail: `${d.typeName || 'Variant'} (class member)`,
+                                detail: `${d.objectType || 'Variant'} (class member)`,
                             });
                         }
                     } else if (member.type === 'ProcedureDeclaration') {
@@ -159,7 +159,7 @@ export class CompletionProvider {
                     symbols.push({
                         label: d.name.name,
                         kind: CompletionItemKind.Variable,
-                        detail: d.typeName || 'Variant',
+                        detail: d.objectType || 'Variant',
                     });
                 }
             }

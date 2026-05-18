@@ -1003,6 +1003,16 @@ export class Parser {
                 (stmt as any).scope = scope;
                 return stmt;
             }
+            if (next.type === TokenType.KeywordType) {
+                const stmt = this.parseTypeDeclaration();
+                (stmt as any).scope = scope;
+                return stmt;
+            }
+            if (next.type === TokenType.KeywordEnum) {
+                const stmt = this.parseEnumDeclaration();
+                (stmt as any).scope = scope;
+                return stmt;
+            }
             // Public/Private on Dim/Const — handle as variable declaration
             const stmt = this.parseDimStatement(false, true);
             if (stmt) {
@@ -1498,10 +1508,21 @@ export class Parser {
 
         // Parse members until 'End Type'
         while (this.peek().type !== TokenType.KeywordEnd && this.peek().type !== TokenType.EOF) {
-            // Each member line: memberName As memberType
+            // Each member line: memberName [(bounds)] As memberType
             const memberNameToken = this.advance();
             if (memberNameToken.type !== TokenType.Identifier) {
                 throw new Error(`Parse error: Expected member name in Type at line ${memberNameToken.line}`);
+            }
+
+            // Skip optional array bounds: (0 To 31), (), etc.
+            if (this.peek().type === TokenType.OperatorLParen) {
+                this.advance(); // consume '('
+                let depth = 1;
+                while (depth > 0 && this.peek().type !== TokenType.EOF && this.peek().type !== TokenType.Newline) {
+                    const t = this.advance();
+                    if (t.type === TokenType.OperatorLParen) depth++;
+                    else if (t.type === TokenType.OperatorRParen) depth--;
+                }
             }
 
             if (!this.match(TokenType.KeywordAs)) {

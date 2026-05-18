@@ -2752,7 +2752,7 @@ export class Evaluator {
 
             // For static variables, restore persisted value if available
             if (isStaticDecl && this.staticVarStore.has(staticKey)) {
-                this.env.set(varName, this.staticVarStore.get(staticKey));
+                this.env.setLocally(varName, this.staticVarStore.get(staticKey));
                 this.staticVarsInCurrentProc.add(varKey);
                 continue;
             }
@@ -2805,7 +2805,13 @@ export class Evaluator {
                     // Variant や未知の型は vbaEmpty のまま
                 }
             }
-            this.env.set(varName, initialValue);
+            // Inside a procedure, declare locally to avoid corrupting outer scopes in recursive calls.
+            // At module level (no currentProcedureName), use set() so the value lands in the global env.
+            if (this.currentProcedureName) {
+                this.env.setLocally(varName, initialValue);
+            } else {
+                this.env.set(varName, initialValue);
+            }
             // Register in module registry for Module1.VarName style access
             if (!this.currentProcedureName && this.currentSourceModule) {
                 this.registerModuleVar(this.currentSourceModule, varName);
@@ -4689,6 +4695,12 @@ export class Evaluator {
             // Constants are stored with module-qualified key (immutable → no sync issue)
             if (this.env.hasVariable(moduleKey)) {
                 return this.env.get(moduleKey);
+            }
+            // VBA standard library module: VBA.vbNull, VBA.vbString, VBA.String$, etc.
+            // Look up the property as a plain identifier (all vb* constants are in env).
+            if (possibleModule.toLowerCase() === 'vba') {
+                const val = this.env.get(propName);
+                if (val !== null && val !== undefined) return val;
             }
             // Variables: look up by unqualified name via module registry
             const vars = this.moduleVarRegistry.get(possibleModule.toLowerCase());

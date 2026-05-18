@@ -577,6 +577,21 @@ Webブラウザおよびテスト環境向けの仮想ファイルシステム (
   - `parseClassDeclaration` のボディ解析を `parseClassBody(name, untilEndClass)` に抽出し再利用
   - `test-libs/test-runner.ts` の文字列ラップハックを削除し `parseAsClass` オプションに統一
 
+- ✅ **Fix: `Private/Public Type` 宣言が無視される** | `private-type-declaration.test.ts`
+  - 原因: パーサーがスコープ修飾子（`Private`/`Public`）の後に `Type` キーワードが来るケースを未処理。`parseDimStatement` にフォールスルーし、`Type` がキーワードトークンのため変数名チェックに失敗してエラーリカバリされていた
+  - 症状: `Private Type json_Options ... End Type` が AST に含まれず、`json_Options` 型の変数が常に `0` になる
+  - 修正: `Public/Private/Friend` ブロックに `KeywordType` / `KeywordEnum` のケースを追加。`parseTypeDeclaration` の配列メンバ（`name(0 To N) As Type`）も括弧をスキップして対応
+
+- ✅ **Fix: `VBA.vbNull` など `VBA.` モジュール修飾定数アクセスが失敗する** | `vba-module-qualifier.test.ts`
+  - 原因: `evaluateMemberExpression` が `VBA.SomeThing` を評価する際、`VBA` 変数が未定義のため `0` になりプロパティアクセスでエラー 424 になっていた
+  - 症状: `Case VBA.vbNull` / `Case VBA.vbString` などが実行時エラー 424 で失敗
+  - 修正: `possibleModule.toLowerCase() === 'vba'` の場合、プロパティ名を直接 `env.get(propName)` で lookup するフォールバックを追加（`vbNull`, `vbString` 等は既に env に登録済み）
+
+- ✅ **Fix: 再帰関数で `Dim` が外側のスコープを上書きする** | `recursive-dim-scope.test.ts`
+  - 原因: `evaluateVariableDeclaration` が `this.env.set(varName, initialValue)` を使っており、`set()` はスコープチェーンを遡って既存の変数を上書きする。再帰呼び出し時に内側の `Dim` が外側の同名変数を初期値でリセットしてしまう
+  - 症状: `ConvertToJson` が再帰呼び出しされると、内側の `Dim json_Converted As String` が外側の `json_Converted` を `""` にリセットしてバッファ内容が消失。`{"name":"Alice",...}` が `"":true}` になる
+  - 修正: プロシージャ内の変数宣言は `setLocally()` を使用してカレントフレームにのみ変数を作成
+
 ### VBA 仕様制約の検証
 
 - ✅ **モジュール名の長さ検証（31 文字制限）**: MS-VBAL §5.2 で定義されたモジュール名の最大長を実行時に検証

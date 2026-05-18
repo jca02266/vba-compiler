@@ -544,6 +544,15 @@ Webブラウザおよびテスト環境向けの仮想ファイルシステム (
   - 修正前は `fs.statSync('')` が ENOENT を投げるため、Unix の `/dev/null` 回避策が必要だった
   - テスト: `time-mocking.test.ts`（test 8 で `new VBARunner()` を使用）
 
+### 条件付きコンパイル (§3.4)
+
+- ✅ **`#If` / `#ElseIf` / `#Else` / `#End If` / `#Const` 対応**: `src/engine/preprocessor.ts` でソーステキストを Lexer 前処理 | `conditional-compilation.test.ts`
+  - デフォルト定数: `VBA7=0`, `Win64=0`, `Win32=-1`, `Mac=0`（ホストアプリ定義の project-level constants）
+  - `VBARunner` コンストラクタの `config.compilerConstants` で上書き可能
+  - 未定義シンボルは `0`（falsy）として扱う（VBA 仕様に準拠）
+  - `#Const` はすべてのブロック（excluded block も含む）で処理される（仕様 §3.4.1）
+  - ネスト・`#EndIf`（スペースなし）・`And`/`Or`/`Not` 演算子すべて対応
+
 ### Parser の拡張機能
 
 - ✅ **Parser に `parseAsClass` パラメータを追加**: `.cls` ファイルやプログラム的にクラスとしてパースすべきコードの指定 | `parse-as-class.test.ts`

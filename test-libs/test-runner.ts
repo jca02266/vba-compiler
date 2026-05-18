@@ -5,6 +5,7 @@ import { Parser, TypeDeclaration, Program } from '../src/engine/parser';
 import { Evaluator, SpyRecord, vbaTrue, vbaFalse, VbaBoolean, vbaNull, vbaEmpty } from '../src/engine/evaluator';
 import { NodeFileSystem } from '../src/engine/node_filesystem';
 import { MemoryFileSystem } from '../src/engine/filesystem';
+import { preprocess, CompilerConstants } from '../src/engine/preprocessor';
 export { vbaTrue, vbaFalse, vbaNull, vbaEmpty };
 
 const VBA_EXTENSIONS = new Set(['.bas', '.cls', '.frm']);
@@ -13,7 +14,7 @@ export class VBARunner {
     public evaluator: Evaluator;
     private _asts: Program[] = [];
 
-    constructor(pathOrDir: string | null = null, config: { sandboxRoot?: string, env?: Record<string, string>, useVirtualFS?: boolean } = {}) {
+    constructor(pathOrDir: string | null = null, config: { sandboxRoot?: string, env?: Record<string, string>, useVirtualFS?: boolean, compilerConstants?: CompilerConstants } = {}) {
         const useVFS = config.useVirtualFS ?? (typeof process !== 'undefined' && process.env.USE_VFS === '1');
         const fileSystem = useVFS ? new MemoryFileSystem() : new NodeFileSystem();
         this.evaluator = new Evaluator(console.log, { ...config, fs: fileSystem });
@@ -34,6 +35,8 @@ export class VBARunner {
                 // Set module name without file extension
                 const moduleName = path.basename(file, path.extname(file));
                 this.evaluator.setSourceModule(moduleName);
+
+                source = preprocess(source, config.compilerConstants);
 
                 // .cls files are always class modules in VBA (file name = class name).
                 // Use parseAsClass option instead of string-wrapping the source.

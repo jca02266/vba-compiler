@@ -519,6 +519,12 @@ export class Parser {
         this.parseAsClass = options.parseAsClass;
     }
 
+    // Keywords can appear as property/class names in VBA (e.g. obj.Property, New Collection)
+    private isNameToken(token: Token): boolean {
+        return token.type === TokenType.Identifier
+            || (token.type >= TokenType.KeywordFor && token.type <= TokenType.KeywordAddressOf);
+    }
+
     private recordError(message: string, token: Token): void {
         const pos: Position = { line: token.line, column: token.column };
         this._diagnostics.push({ message, loc: { start: pos, end: pos }, severity: 'error' });
@@ -1246,10 +1252,14 @@ export class Parser {
             this.consume(TokenType.OperatorRParen, "Expected ')' after procedure parameters");
         }
 
-        // Optional Function return type (e.g. 'As Long')
+        // Optional Function return type (e.g. 'As Long', 'As Scripting.Dictionary')
         let returnType: string | undefined;
         if (this.match(TokenType.KeywordAs)) {
             returnType = this.advance().value;
+            if (this.peek().type === TokenType.OperatorDot) {
+                this.advance(); // consume '.'
+                returnType += '.' + this.advance().value;
+            }
         }
 
         // Trailing Static: Sub Foo() Static
@@ -1324,8 +1334,12 @@ export class Parser {
                     isNew = true;
                 }
                 const typeToken = this.peek();
-                if (typeToken.type === TokenType.KeywordCollection || typeToken.type === TokenType.Identifier) {
+                if (this.isNameToken(typeToken)) {
                     objectType = this.advance().value;
+                    if (this.peek().type === TokenType.OperatorDot) {
+                        this.advance(); // consume '.'
+                        objectType += '.' + this.advance().value;
+                    }
                 }
             }
 
@@ -2234,10 +2248,15 @@ export class Parser {
             expr = { type: 'Identifier', name: 'Error' } as Identifier;
         } else if (token.type === TokenType.KeywordNew) {
             const classNameToken = this.advance();
-            if (classNameToken.type !== TokenType.Identifier) {
+            if (!this.isNameToken(classNameToken)) {
                 throw new Error(`Parse error: Expected class name after 'New' at line ${classNameToken.line}`);
             }
-            expr = { type: 'NewExpression', className: classNameToken.value } as NewExpression;
+            let className = classNameToken.value;
+            if (this.peek().type === TokenType.OperatorDot) {
+                this.advance(); // consume '.'
+                className += '.' + this.advance().value;
+            }
+            expr = { type: 'NewExpression', className } as NewExpression;
         } else if (token.type === TokenType.OperatorLParen) {
             const innerExpr = this.parseExpression();
             if (!this.match(TokenType.OperatorRParen)) {
@@ -2256,7 +2275,7 @@ export class Parser {
             expr = { type: 'TypeOfIsExpression', expression: expr, typeName: typeToken.value } as TypeOfIsExpression;
         } else if (token.type === TokenType.OperatorDot) {
             const propToken = this.advance();
-            if (propToken.type !== TokenType.Identifier) {
+            if (!this.isNameToken(propToken)) {
                 throw new Error(`Parse error: Expected identifier after '.' at line ${propToken.line}`);
             }
             const property = { type: 'Identifier', name: propToken.value } as Identifier;

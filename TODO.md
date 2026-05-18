@@ -553,6 +553,23 @@ Webブラウザおよびテスト環境向けの仮想ファイルシステム (
   - `#Const` はすべてのブロック（excluded block も含む）で処理される（仕様 §3.4.1）
   - ネスト・`#EndIf`（スペースなし）・`And`/`Or`/`Not` 演算子すべて対応
 
+### Parser バグ修正
+
+- ✅ **Fix: `New Collection` — キーワードトークンのクラス名が `New` 式で拒否される** | `new-keyword-classname.test.ts`
+  - 原因: `New` 式のパーサーが `classNameToken.type !== Identifier` をチェックしており、`Collection` のように VBA 組み込みキーワードとして字句解析されるクラス名を拒否していた
+  - 症状: `New Collection` を含む関数全体がエラーリカバリで消滅し、後続のプロシージャが誤ってトップレベルにリークする
+  - 修正: `isNameToken()` ヘルパーを追加し、`Identifier` またはキーワード範囲のトークンを許可。`New Scripting.Dictionary` のようなドット付きクラス名も正しく捕捉するよう拡張
+
+- ✅ **Fix: `As VBA.Collection` — モジュール修飾型の戻り値型が半分しかパースされない** | `module-qualified-type.test.ts`
+  - 原因: 関数・Subの戻り値型 `As <Type>` のパーサーがトークンを1つだけ読んでいたため、`As VBA.Collection` は `VBA` だけを returnType とし、`.Collection` が本体ストリームに残った
+  - 症状: 残った `.Collection`（キーワード）が本体パースでエラーとなり、関数宣言全体が消滅して `[]` になる
+  - 修正: `As` 後にドットが続く場合は `Module.Type` 形式で読み切るよう修正。変数宣言の `Dim x As Module.Type` も同様に対応
+
+- ✅ **Fix: `.Collection` — implicit-With のプロパティ名がキーワードのとき失敗する** | `keyword-property-access.test.ts`
+  - 原因: `With obj: .Property = x` のパーサーが `propToken.type !== Identifier` をチェックしており、`.Collection` のようにプロパティ名がキーワードトークンのとき例外を投げていた
+  - 症状: `With` ブロック内でキーワード名プロパティを使うと、含む Sub/Function 全体がエラーリカバリで消滅する
+  - 修正: `isNameToken()` を使い、`Identifier` またはキーワード範囲のトークンを許可
+
 ### Parser の拡張機能
 
 - ✅ **Parser に `parseAsClass` パラメータを追加**: `.cls` ファイルやプログラム的にクラスとしてパースすべきコードの指定 | `parse-as-class.test.ts`

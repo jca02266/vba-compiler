@@ -6,6 +6,7 @@ import { DefinitionProvider } from './definition-provider';
 import { CompletionProvider } from './completion-provider';
 import { ReferencesProvider } from './references-provider';
 import { RenameProvider } from './rename-provider';
+import { CodeLensProvider } from './code-lens-provider';
 import { TestDiscovery } from './test-discovery';
 import { TestRunner } from './test-runner';
 import { DebugAdapter } from './debug-adapter';
@@ -35,6 +36,7 @@ export class LSPServer {
     private completionProvider: CompletionProvider;
     private referencesProvider: ReferencesProvider;
     private renameProvider: RenameProvider;
+    private codeLensProvider: CodeLensProvider;
     private testDiscovery: TestDiscovery;
     private testRunner: TestRunner;
     private debugAdapters: Map<string, DebugAdapter> = new Map();
@@ -46,6 +48,7 @@ export class LSPServer {
         this.completionProvider = new CompletionProvider();
         this.referencesProvider = new ReferencesProvider();
         this.renameProvider = new RenameProvider();
+        this.codeLensProvider = new CodeLensProvider();
         this.testDiscovery = new TestDiscovery();
         this.testRunner = new TestRunner();
     }
@@ -175,6 +178,19 @@ export class LSPServer {
     }
 
     /**
+     * Get code lens items for document
+     */
+    getCodeLens(uri: string): any[] {
+        const doc = this.documents.get(uri);
+        if (!doc) return [];
+
+        const ast = this.parseDocument(doc.content);
+        if (!ast) return [];
+
+        return this.codeLensProvider.getCodeLens(ast.body, doc.content, uri);
+    }
+
+    /**
      * Get completion suggestions
      */
     getCompletions(uri: string, line: number, character: number): any[] {
@@ -223,7 +239,7 @@ export class LSPServer {
         try {
             const tokens = new Lexer(doc.content).tokenize();
             const ast = new Parser(tokens).parse();
-            return ast.diagnostics.map((d: any) => ({
+            const parseDiags = ast.diagnostics.map((d: any) => ({
                 range: {
                     start: { line: d.loc.start.line - 1, character: d.loc.start.column - 1 },
                     end: { line: d.loc.end.line - 1, character: d.loc.end.column - 1 },
@@ -232,6 +248,8 @@ export class LSPServer {
                 message: d.message,
                 source: 'vba-runner',
             }));
+            const deadCodeWarnings = this.codeLensProvider.getDeadCodeWarnings(ast.body, doc.content, uri);
+            return [...parseDiags, ...deadCodeWarnings];
         } catch {
             return [];
         }

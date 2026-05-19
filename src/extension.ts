@@ -293,6 +293,75 @@ export async function activate(context: vscode.ExtensionContext) {
     );
     outputChannel.appendLine('✓ Debug adapter factory registered');
 
+    // Register code lens provider
+    context.subscriptions.push(
+        vscode.languages.registerCodeLensProvider('vba', {
+            provideCodeLenses(document) {
+                const items = lspServer.getCodeLens(document.uri.toString());
+                return items.map((item: any) => {
+                    const range = new vscode.Range(
+                        item.range.start.line, item.range.start.character,
+                        item.range.end.line,   item.range.end.character,
+                    );
+                    const lens = new vscode.CodeLens(range);
+                    lens.command = {
+                        title:     item.command.title,
+                        command:   item.command.command,
+                        arguments: item.command.arguments,
+                    };
+                    return lens;
+                });
+            }
+        })
+    );
+    outputChannel.appendLine('✓ Code Lens provider registered');
+
+    // vba-runner.runProcedure: parameterless Sub/Function を即実行
+    context.subscriptions.push(
+        vscode.commands.registerCommand('vba-runner.runProcedure', async (uri: string, procName: string) => {
+            try {
+                const { Lexer } = await import('./engine/lexer');
+                const { Parser } = await import('./engine/parser');
+                const { Evaluator } = await import('./engine/evaluator');
+                const doc = documentMap.get(uri);
+                if (!doc) return;
+                const tokens = new Lexer(doc.getText()).tokenize();
+                const ast = new Parser(tokens).parse();
+                const ev = new Evaluator((msg: string) => outputChannel.appendLine(msg));
+                ev.evaluate(ast);
+                const result = ev.callProcedure(procName, []);
+                outputChannel.appendLine(`[Run] ${procName}() → ${result}`);
+                outputChannel.show();
+            } catch (e: any) {
+                outputChannel.appendLine(`[Error] ${procName}: ${e.message}`);
+                outputChannel.show();
+            }
+        })
+    );
+
+    // vba-runner.findReferences: References ビューを開く
+    context.subscriptions.push(
+        vscode.commands.registerCommand('vba-runner.findReferences', (uri: string, procName: string) => {
+            const doc = documentMap.get(uri);
+            if (!doc) return;
+            const refs = lspServer.getReferences(uri, 0, 0, true);
+            // カーソルを宣言行に移動して References コマンドを実行
+            vscode.commands.executeCommand('editor.action.referenceSearch.trigger');
+        })
+    );
+
+    // vba-runner.generateTest / vba-runner.goToTest: stub（将来実装）
+    context.subscriptions.push(
+        vscode.commands.registerCommand('vba-runner.generateTest', () => {
+            vscode.window.showInformationMessage('Test generation: coming soon');
+        })
+    );
+    context.subscriptions.push(
+        vscode.commands.registerCommand('vba-runner.goToTest', () => {
+            vscode.commands.executeCommand('workbench.action.findInFiles');
+        })
+    );
+
     outputChannel.appendLine('✓ All providers registered successfully');
     outputChannel.appendLine('📝 Open a .bas file and hover over code to test LSP features');
     outputChannel.show();

@@ -1084,9 +1084,9 @@ export class Parser {
             return this.parseResumeStatement();
         } else if (token.type === TokenType.KeywordImplements) {
             return this.parseImplementsDirective();
-        } else if (token.type === TokenType.KeywordAppActivate) {
+        } else if (token.type === TokenType.KeywordAppActivate && this.peek(1).type !== TokenType.OperatorEquals) {
             return this.parseAppActivateStatement();
-        } else if (token.type === TokenType.KeywordSendKeys) {
+        } else if (token.type === TokenType.KeywordSendKeys && this.peek(1).type !== TokenType.OperatorEquals) {
             return this.parseSendKeysStatement();
         } else if (token.type === TokenType.KeywordOption) {
             this.advance(); // 'Option'
@@ -1125,7 +1125,7 @@ export class Parser {
             return this.parseOpenStatement();
         } else if (token.type === TokenType.KeywordClose) {
             return this.parseCloseStatement();
-        } else if (token.type === TokenType.KeywordLine) {
+        } else if (token.type === TokenType.KeywordLine && this.peek(1).type !== TokenType.OperatorEquals) {
             return this.parseLineInputStatement();
         } else if (token.type === TokenType.KeywordPrint) {
             return this.parsePrintStatement();
@@ -1139,9 +1139,9 @@ export class Parser {
             return this.parseWriteStatement();
         } else if (token.type === TokenType.KeywordSeek) {
             return this.parseSeekStatement();
-        } else if (token.type === TokenType.KeywordReset) {
+        } else if (token.type === TokenType.KeywordReset && this.peek(1).type !== TokenType.OperatorEquals) {
             return this.parseResetStatement();
-        } else if (token.type === TokenType.KeywordKill) {
+        } else if (token.type === TokenType.KeywordKill && this.peek(1).type !== TokenType.OperatorEquals) {
             return this.parseKillStatement();
         } else if (token.type === TokenType.KeywordEvent) {
             return this.parseEventDeclaration();
@@ -1151,7 +1151,7 @@ export class Parser {
             return this.parseLockStatement();
         } else if (token.type === TokenType.KeywordUnlock) {
             return this.parseUnlockStatement();
-        } else if (token.type === TokenType.KeywordWidth) {
+        } else if (token.type === TokenType.KeywordWidth && this.peek(1).type !== TokenType.OperatorEquals) {
             return this.parseWidthStatement();
         } else if (token.type === TokenType.KeywordClass) {
             return this.parseClassDeclaration();
@@ -1164,7 +1164,17 @@ export class Parser {
                 return { type: 'CallStatement', expression: { type: 'CallExpression', callee: expr, args: [] } } as CallStatement;
             }
             throw new Error(`Parse error: Expected procedure call after 'Call'`);
-        } else if (token.type === TokenType.Identifier || token.type === TokenType.OperatorDot || token.type === TokenType.Number || token.type === TokenType.KeywordMid) {
+        } else if (token.type === TokenType.Identifier || token.type === TokenType.OperatorDot || token.type === TokenType.Number || token.type === TokenType.KeywordMid ||
+                   token.type === TokenType.KeywordOutput || token.type === TokenType.KeywordAppend || token.type === TokenType.KeywordRandom || token.type === TokenType.KeywordBinary ||
+                   // Contextual keywords usable as identifiers (§3.3.5.2 — not in reserved-identifier list)
+                   token.type === TokenType.KeywordAccess || token.type === TokenType.KeywordRead ||
+                   token.type === TokenType.KeywordModule || token.type === TokenType.KeywordText ||
+                   token.type === TokenType.KeywordCompare || token.type === TokenType.KeywordExplicit ||
+                   token.type === TokenType.KeywordLib || token.type === TokenType.KeywordAlias ||
+                   token.type === TokenType.KeywordPtrSafe || token.type === TokenType.KeywordStep ||
+                   token.type === TokenType.KeywordKill || token.type === TokenType.KeywordWidth ||
+                   token.type === TokenType.KeywordLine || token.type === TokenType.KeywordReset ||
+                   token.type === TokenType.KeywordAppActivate || token.type === TokenType.KeywordSendKeys) {
             // Check if it's a label "Identifier:" or "Number" (line number)
             if (token.type === TokenType.Identifier && this.pos + 1 < this.tokens.length && this.tokens[this.pos + 1].type === TokenType.OperatorColon) {
                 const labelName = token.value;
@@ -1309,7 +1319,16 @@ export class Parser {
                 isWithEvents = true;
             }
             const idToken = this.advance();
-            if (idToken.type !== TokenType.Identifier && (idToken.type < TokenType.KeywordBase || idToken.type > TokenType.KeywordAddressOf)) {
+            // Allow contextual keywords (non-reserved per §3.3.5.2) as variable names.
+            // These fall below KeywordBase in the enum but are valid IDENTIFIERs per spec.
+            const isContextualKwDim = (t: TokenType): boolean =>
+                t === TokenType.KeywordBinary || t === TokenType.KeywordText ||
+                t === TokenType.KeywordCompare || t === TokenType.KeywordExplicit ||
+                t === TokenType.KeywordLib || t === TokenType.KeywordAlias ||
+                t === TokenType.KeywordPtrSafe || t === TokenType.KeywordStep;
+            if (idToken.type !== TokenType.Identifier &&
+                !isContextualKwDim(idToken.type) &&
+                (idToken.type < TokenType.KeywordBase || idToken.type > TokenType.KeywordAddressOf)) {
                 throw new Error(`Parse error at line ${idToken.line}: Expected variable name (Found ${idToken.value})`);
             }
             const name: Identifier = { type: 'Identifier', name: idToken.value };
@@ -2241,8 +2260,8 @@ export class Parser {
             expr = { type: 'StringLiteral', value: token.value } as StringLiteral;
         } else if (token.type === TokenType.Date) {
             expr = { type: 'DateLiteral', value: token.value } as DateLiteral;
-        } else if (token.type === TokenType.Identifier || 
-                   token.type === TokenType.KeywordMid || 
+        } else if (token.type === TokenType.Identifier ||
+                   token.type === TokenType.KeywordMid ||
                    token.type === TokenType.KeywordWidth ||
                    token.type === TokenType.KeywordSeek ||
                    token.type === TokenType.KeywordLine ||
@@ -2252,7 +2271,25 @@ export class Parser {
                    token.type === TokenType.KeywordGet ||
                    token.type === TokenType.KeywordLock ||
                    token.type === TokenType.KeywordUnlock ||
-                   token.type === TokenType.KeywordKill) {
+                   token.type === TokenType.KeywordKill ||
+                   // Contextual keywords usable as identifiers (§3.3.5.2 — not in reserved-identifier list)
+                   token.type === TokenType.KeywordOutput ||
+                   token.type === TokenType.KeywordAppend ||
+                   token.type === TokenType.KeywordRandom ||
+                   token.type === TokenType.KeywordBinary ||
+                   token.type === TokenType.KeywordAccess ||
+                   token.type === TokenType.KeywordRead ||
+                   token.type === TokenType.KeywordModule ||
+                   token.type === TokenType.KeywordText ||
+                   token.type === TokenType.KeywordCompare ||
+                   token.type === TokenType.KeywordExplicit ||
+                   token.type === TokenType.KeywordLib ||
+                   token.type === TokenType.KeywordAlias ||
+                   token.type === TokenType.KeywordPtrSafe ||
+                   token.type === TokenType.KeywordStep ||
+                   token.type === TokenType.KeywordReset ||
+                   token.type === TokenType.KeywordAppActivate ||
+                   token.type === TokenType.KeywordSendKeys) {
             expr = { type: 'Identifier', name: token.value } as Identifier;
         } else if (token.type === TokenType.KeywordAddressOf) {
             const procName = this.consume(TokenType.Identifier, "Expected procedure name after 'AddressOf'");

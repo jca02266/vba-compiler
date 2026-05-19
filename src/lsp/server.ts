@@ -4,6 +4,8 @@ import { SymbolProvider } from './symbol-provider';
 import { HoverProvider } from './hover-provider';
 import { DefinitionProvider } from './definition-provider';
 import { CompletionProvider } from './completion-provider';
+import { ReferencesProvider } from './references-provider';
+import { RenameProvider } from './rename-provider';
 import { TestDiscovery } from './test-discovery';
 import { TestRunner } from './test-runner';
 import { DebugAdapter } from './debug-adapter';
@@ -31,6 +33,8 @@ export class LSPServer {
     private hoverProvider: HoverProvider;
     private definitionProvider: DefinitionProvider;
     private completionProvider: CompletionProvider;
+    private referencesProvider: ReferencesProvider;
+    private renameProvider: RenameProvider;
     private testDiscovery: TestDiscovery;
     private testRunner: TestRunner;
     private debugAdapters: Map<string, DebugAdapter> = new Map();
@@ -40,6 +44,8 @@ export class LSPServer {
         this.hoverProvider = new HoverProvider();
         this.definitionProvider = new DefinitionProvider();
         this.completionProvider = new CompletionProvider();
+        this.referencesProvider = new ReferencesProvider();
+        this.renameProvider = new RenameProvider();
         this.testDiscovery = new TestDiscovery();
         this.testRunner = new TestRunner();
     }
@@ -138,6 +144,34 @@ export class LSPServer {
         } catch {
             return null;
         }
+    }
+
+    /**
+     * Get all references to the symbol at the given position
+     */
+    getReferences(uri: string, line: number, character: number, includeDeclaration: boolean): any[] {
+        const doc = this.documents.get(uri);
+        if (!doc) return [];
+
+        const ast = this.parseDocument(doc.content);
+        if (!ast) return [];
+
+        this.referencesProvider.setDocumentUri(uri);
+        return this.referencesProvider.getReferences(ast.body, doc.content, line, character, includeDeclaration);
+    }
+
+    /**
+     * Get workspace edits for renaming the symbol at the given position
+     */
+    getRename(uri: string, line: number, character: number, newName: string): any[] | null {
+        const doc = this.documents.get(uri);
+        if (!doc) return null;
+
+        const ast = this.parseDocument(doc.content);
+        if (!ast) return null;
+
+        this.renameProvider.setDocumentUri(uri);
+        return this.renameProvider.getRename(ast.body, doc.content, line, character, newName);
     }
 
     /**

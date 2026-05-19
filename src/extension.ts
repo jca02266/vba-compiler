@@ -157,6 +157,51 @@ export async function activate(context: vscode.ExtensionContext) {
     );
     outputChannel.appendLine('✓ DocumentSymbol provider registered');
 
+    // Register references provider (Shift+F12)
+    context.subscriptions.push(
+        vscode.languages.registerReferenceProvider('vba', {
+            provideReferences(document, position, context) {
+                const refs = lspServer.getReferences(
+                    document.uri.toString(),
+                    position.line,
+                    position.character,
+                    context.includeDeclaration,
+                );
+                return refs.map((r: any) => new vscode.Location(
+                    vscode.Uri.parse(r.uri),
+                    new vscode.Range(r.range.start.line, r.range.start.character, r.range.end.line, r.range.end.character),
+                ));
+            }
+        })
+    );
+    outputChannel.appendLine('✓ References provider registered');
+
+    // Register rename provider (F2)
+    context.subscriptions.push(
+        vscode.languages.registerRenameProvider('vba', {
+            provideRenameEdits(document, position, newName) {
+                const edits = lspServer.getRename(
+                    document.uri.toString(),
+                    position.line,
+                    position.character,
+                    newName,
+                );
+                if (!edits) return null;
+
+                const wsEdit = new vscode.WorkspaceEdit();
+                for (const edit of edits) {
+                    wsEdit.replace(
+                        document.uri,
+                        new vscode.Range(edit.range.start.line, edit.range.start.character, edit.range.end.line, edit.range.end.character),
+                        edit.newText,
+                    );
+                }
+                return wsEdit;
+            }
+        })
+    );
+    outputChannel.appendLine('✓ Rename provider registered');
+
     // Register completion provider
     context.subscriptions.push(
         vscode.languages.registerCompletionItemProvider('vba', {

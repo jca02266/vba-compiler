@@ -169,4 +169,29 @@ End Function
 assert.strictEqual(runFunc(strColCode, 'JoinItems'), 'foo,bar,baz', 'Collection 文字列要素の連結');
 console.log('[PASS] Collection 文字列要素の連結');
 
+// --- 8. Set obj = New Collection から返した Collection の For Each ---
+// New Collection を Set で受け渡す場合、instantiateClass 経由の外部ファクトリオブジェクトになる
+// items プロパティではなく Symbol.iterator を使って列挙できること
+const colFromFuncCode = `
+Function MakeCol() As Collection
+    Dim c As Collection
+    Set c = New Collection
+    c.Add "p"
+    c.Add "q"
+    c.Add "r"
+    Set MakeCol = c
+End Function
+
+Function F() As String
+    Dim acc As String
+    Dim v As Variant
+    For Each v In MakeCol()
+        acc = acc & v
+    Next v
+    F = acc
+End Function
+`;
+assert.strictEqual(runFunc(colFromFuncCode, 'F'), 'pqr', 'Set = New Collection から返した Collection の For Each');
+console.log('[PASS] Set = New Collection から返した Collection の For Each');
+
 console.log('\n✅ For Each Statement: 全テスト通過');

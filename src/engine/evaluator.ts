@@ -825,6 +825,7 @@ export class Evaluator {
         this.env.set('vartype', (val: any) => {
             if (val === vbaEmpty || val === undefined) return 0; // vbEmpty
             if (val === vbaNull) return 1; // vbNull
+            if (val === vbaNothing) return 9; // vbObject
             if (val instanceof VbaBoolean) return 11; // vbBoolean
             if (val instanceof VbaDate) return 7; // vbDate
             if (val === vbaMissing || val instanceof VbaErrorValue) return 10; // vbError
@@ -2147,6 +2148,12 @@ export class Evaluator {
             }
         } else if (collection && collection.__isVbaDict__) {
             elements = Array.from((collection.__map__ as Map<any, any>).keys());
+        } else if (collection && collection.__isVbaCollection__) {
+            if (typeof collection[Symbol.iterator] === 'function') {
+                elements = Array.from(collection as Iterable<any>);
+            } else {
+                elements = Array.isArray(collection.items) ? collection.items : [];
+            }
         } else if (collection && typeof collection.items !== 'undefined') {
             elements = Array.isArray(collection.items) ? collection.items : [];
         } else {

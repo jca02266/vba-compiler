@@ -20,6 +20,7 @@ function testVarType() {
     const tests = [
         { code: "Debug.Print VarType(Empty)", expected: 0 },
         { code: "Debug.Print VarType(Null)", expected: 1 },
+        { code: "Debug.Print VarType(Nothing)", expected: 9 },
         { code: "Debug.Print VarType(True)", expected: 11 },
         { code: "Debug.Print VarType(#2023-01-01#)", expected: 7 },
         { code: "Debug.Print VarType(CVErr(5))", expected: 10 },

@@ -609,6 +609,16 @@ Webブラウザおよびテスト環境向けの仮想ファイルシステム (
   - 症状: `Select Case VarType(arr)` 内で `LBound(arr, 2)` が VBA エラー 9 を投げると、`On Error Resume Next` で次行に進まず Select Case 全体がスキップされ、戻り値が null になる（`ConvertToJson(array)` が `""` を返す）
   - 修正: 各ブロック評価関数でブロック本体の実行を `executeStatements(body, 0, false)` に変更。`isTopLevel=false` の場合は VBA エラーのみ `On Error Resume Next` で処理し、`GoTo` / `GoSub` / `Return` / `Resume` はプロシージャ本体の `executeStatements` に委譲するよう再スロー
 
+- ✅ **Fix: `VarType(Nothing)` が 9（vbObject）ではなく 12 を返す** | `vartype.test.ts`
+  - 原因: `vbaNothing` は `Symbol` であり、`vartype` 組み込み関数の各型チェック（`instanceof`・`typeof object`）をすべてすり抜けて `return 12` にフォールスルーしていた
+  - 症状: `JsonConverter.bas` の `json_IsUndefined` が `VarType = vbObject (9)` で Nothing を検出する設計のため、辞書の Nothing 値がスキップされず JSON に出力されてしまう
+  - 修正: `vartype` の先頭近くに `if (val === vbaNothing) return 9; // vbObject` を追加
+
+- ✅ **Fix: `Set c = New Collection` / 関数から返した Collection への `For Each` が "Type mismatch" になる** | `for-each.test.ts`
+  - 原因: `Dim col As New Collection` は `VbaCollection` クラスインスタンス（`items` getter あり）を生成するが、`Set c = New Collection` は `instantiateClass('Collection')` → `registerExternalObject('Collection', ...)` のファクトリ経由でプレーンオブジェクト（`Symbol.iterator` あり・`items` なし）を生成する。`evaluateForEachStatement` が `items` プロパティの存在のみをチェックしており、ファクトリオブジェクトを処理できなかった
+  - 症状: `ParseJson("[1,2,3]")` が返す Collection への `For Each` でエラー 13 が発生
+  - 修正: `evaluateForEachStatement` に `__isVbaCollection__` チェックを追加し、`Symbol.iterator` があれば `Array.from` で列挙するパスを設ける
+
 ### VBA 仕様制約の検証
 
 - ✅ **モジュール名の長さ検証（31 文字制限）**: MS-VBAL §5.2 で定義されたモジュール名の最大長を実行時に検証
